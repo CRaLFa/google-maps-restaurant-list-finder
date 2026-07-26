@@ -1,0 +1,10 @@
+# Python 生成物
+__pycache__/
+*.pyc
+
+# Claude Code のローカル設定 (端末 IP 等を含むためコミットしない)
+.claude/settings.local.json
+
+# 一時・バックアップファイル
+*.before-*.tsv
+test-*.tsv
