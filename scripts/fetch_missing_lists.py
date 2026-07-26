@@ -34,7 +34,7 @@ from fetch_share_urls import (
     tap,
 )
 
-OUT = os.environ.get("OUT", "share-urls.tsv")
+OUT = os.environ.get("OUT", "data/share-urls.tsv")
 MAX = int(os.environ.get("MAX", "0"))  # 0 なら全件
 SEED = os.environ.get("SEED", "")  # 新規に追加したいエリアの一覧ファイル
 

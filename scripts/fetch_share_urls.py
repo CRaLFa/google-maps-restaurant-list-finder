@@ -17,7 +17,7 @@ import sys
 import time
 
 DEV = os.environ.get("DEV", "100.64.1.35:42931")
-OUT = os.environ.get("OUT", "share-urls.tsv")
+OUT = os.environ.get("OUT", "data/share-urls.tsv")
 MAX = int(os.environ.get("MAX", "0"))  # 0 なら全件
 CLIP = "/data/local/tmp/clip"  # 端末上の adb-clip
 

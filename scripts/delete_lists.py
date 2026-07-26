@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fetch_share_urls as g  # noqa: E402
 
 g.DEV = os.environ.get("DEV", g.DEV)
-TSV = os.environ.get("OUT", "share-urls.tsv")
+TSV = os.environ.get("OUT", "data/share-urls.tsv")
 LIMIT = int(os.environ.get("LIMIT", "0"))  # 0 なら全件。削除件数の上限
 KEEP_SUFFIX = "トップリスト"  # この接尾辞のリストは削除しない
 

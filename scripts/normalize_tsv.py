@@ -7,7 +7,7 @@ URL を落とさないよう、行数と URL 集合が変わっていないこ�
 import os
 import sys
 
-OUT = os.environ.get("OUT", "share-urls.tsv")
+OUT = os.environ.get("OUT", "data/share-urls.tsv")
 
 with open(OUT, encoding="utf-8") as f:
     lines = [ln.rstrip("\n") for ln in f if ln.strip()]

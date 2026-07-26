@@ -20,7 +20,7 @@ CITIES / WARDS / DISTRICTS / METRO を更新してから実行すること。
 import os
 import sys
 
-OUT = os.environ.get("OUT", "share-urls.tsv")
+OUT = os.environ.get("OUT", "data/share-urls.tsv")
 
 PREFECTURES = (
     "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
