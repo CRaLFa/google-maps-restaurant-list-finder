@@ -14,6 +14,7 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
 実機の Google マップアプリを adb + uiautomator で自動操作する。描画上限を受けず全件を確実に扱える。
 
 - [`fetch_share_urls.py`](./fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を [`share-urls.tsv`](./share-urls.tsv) に追記する。既知の名前はスキップするため resume-safe。
+- [`fetch_missing_lists.py`](./fetch_missing_lists.py) — `share-urls.tsv` で 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、エリア検索から未フォローのリストを開いて共有 URL を取得する。フォロー (保存) するのはトップリストのみ。
 - [`delete_lists.py`](./delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外 (トレンド / 地元で人気) を一括削除 (フォロー解除) する。**不可逆操作**。
 - [`tools/adb-clip/`](./tools/adb-clip/) — クリップボード読み書き用に vendor した [polygraphene/adb-clip](https://github.com/polygraphene/adb-clip)。共有 URL の取得に使う。
 
