@@ -32,10 +32,11 @@ def load_known(path):
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             for line in f:
-                if "\t" in line:
-                    n, u = line.rstrip("\n").split("\t", 1)
-                    names.add(n)
-                    urls.add(u)
+                # 3 列目に同名の区を区別する市名が入ることがあるので分割数を絞らない。
+                cols = line.rstrip("\n").split("\t")
+                if len(cols) >= 2:
+                    names.add(cols[0])
+                    urls.add(cols[1])
     return names, urls
 
 

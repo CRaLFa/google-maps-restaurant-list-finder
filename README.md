@@ -14,24 +14,35 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
 実機の Google マップアプリを adb + uiautomator で自動操作する。描画上限を受けず全件を確実に扱える。
 
 - [`fetch_share_urls.py`](./fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を [`share-urls.tsv`](./share-urls.tsv) に追記する。既知の名前はスキップするため resume-safe。
-- [`fetch_missing_lists.py`](./fetch_missing_lists.py) — `share-urls.tsv` で 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、エリア検索から未フォローのリストを開いて共有 URL を取得する。フォロー (保存) するのはトップリストのみ。
+- [`fetch_missing_lists.py`](./fetch_missing_lists.py) — `share-urls.tsv` で 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、エリア検索から未フォローのリストを開いて共有 URL を取得する。フォロー (保存) するのはトップリストのみ。`SEED=seed.tsv` を渡すと、まだ 1 件も無い新規エリアも対象にできる。
 - [`delete_lists.py`](./delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外 (トレンド / 地元で人気) を一括削除 (フォロー解除) する。**不可逆操作**。
+- [`set_locations.py`](./set_locations.py) — `share-urls.tsv` 3 列目 (所在地) を都道府県から始まる住所表記でセットする。新しいエリアを追加したら `CITIES` / `WARDS` / `DISTRICTS` / `METRO` を更新して実行する。冪等。
+- [`normalize_tsv.py`](./normalize_tsv.py) — `share-urls.tsv` を全行 3 カラムに揃え、codepoint 順に並べ直す。取得スクリプトの実行後に流す想定。
 - [`tools/adb-clip/`](./tools/adb-clip/) — クリップボード読み書き用に vendor した [polygraphene/adb-clip](https://github.com/polygraphene/adb-clip)。共有 URL の取得に使う。
 
 クリップボードは Android 10 以降フォアグラウンド以外から読めないため、adb-clip を `app_process` 経由で使って回避している。詳細は [`docs/adb-workflow.md`](./docs/adb-workflow.md) 参照。
 
 ## データファイル
 
-- [`share-urls.tsv`](./share-urls.tsv) — **正データ。** `リスト名 <TAB> 共有 URL` の TSV。
+- [`share-urls.tsv`](./share-urls.tsv) — **正データ。** `リスト名 <TAB> 共有 URL <TAB> 所在地` の TSV。
   フォロー中かどうかに関わらず、収集したエリア別リストをすべて記録する。
   削除したリストのバックアップも兼ねる (URL から再フォローで復元可能)。
+  1 列目は Google 上の実際のリスト名 (「中区」「渋谷」等、全国で同名になり得る)。
+  3 列目は同名エリアを区別するための所在地で、都道府県から始まる住所表記
+  (`北海道` / `愛知県名古屋市` / `東京都港区` のように粒度はエリア種別で変わる) を入れる。
+  区別が不要なエリアは 3 列目を空にする (行末はタブで終わる)。
+  一意キーは (1 列目, 3 列目) の組。
+- [`seed.tsv`](./seed.tsv) — `fetch_missing_lists.py` の `SEED` に渡す新規エリア候補の一覧。
+  試した検索語・所在地の記録を兼ねるため、取得済みの行も削除せず残している。
 
 ### 現在の内容 (2026-07-26)
 
-502 件 / 168 エリア。内訳はトップリスト 168・トレンド 166・地元で人気 168。
+571 件 / 191 エリア。内訳はトップリスト 191・トレンド 189・地元で人気 191。
 
 - **端末にフォローして残しているのはトップリストのみ。** トレンド / 地元で人気 は共有 URL だけを保持している。
-- 未取得は `代官山町: トレンド` (Google 側にリストが存在しないことを確認済み) と `東京: トレンド` (エリアページに到達できず調査を打ち切り) の 2 件。
+- 未取得は `代官山町: トレンド` と `東京: トレンド` (どちらも Google 側にリストが存在しないことを確認済み) の 2 件。
+- 政令指定都市の区、同名の区 (中区・北区・南区・東区・西区・中央区・港区等)、主要都市の繁華街エリアを調査・追加済み。
+  詳細な調査結果は [`docs/missing-areas.md`](./docs/missing-areas.md) を参照。
 
 ## ドキュメント
 

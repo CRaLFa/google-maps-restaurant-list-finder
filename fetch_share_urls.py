@@ -211,10 +211,13 @@ def main():
     if os.path.exists(OUT):
         with open(OUT, encoding="utf-8") as f:
             for line in f:
-                if "\t" in line:
-                    name, url = line.rstrip("\n").split("\t", 1)
-                    done[name] = url
-                    urls_seen.add(url)
+                # 3 列目に同名の区を区別する市名が入ることがあるので分割数を絞らない。
+                # 端末の UI 上は同名の区を見分けられないため、
+                # ここでは名前が一致すれば取得済みとして扱う (重複行を作らない)。
+                cols = line.rstrip("\n").split("\t")
+                if len(cols) >= 2:
+                    done[cols[0]] = cols[1]
+                    urls_seen.add(cols[1])
     log(f"開始: 取得済み {len(done)} 件")
 
     # adb-clip が使えるか事前確認する。
