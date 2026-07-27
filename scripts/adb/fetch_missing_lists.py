@@ -20,9 +20,11 @@ import sys
 import time
 import urllib.parse
 
-import locations
-import store
-from fetch_share_urls import (
+# store / locations は親ディレクトリ (scripts/) にある。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import locations  # noqa: E402
+import store  # noqa: E402
+from fetch_share_urls import (  # noqa: E402
     SENTINEL,
     adb,
     center,

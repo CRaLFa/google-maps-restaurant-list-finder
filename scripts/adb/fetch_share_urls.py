@@ -21,8 +21,10 @@ import subprocess
 import sys
 import time
 
-import locations
-import store
+# store / locations は親ディレクトリ (scripts/) にある。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import locations  # noqa: E402
+import store  # noqa: E402
 
 # 端末シリアル。ワイヤレスデバッグはポートが毎回変わるので .env か実行時に指定する。
 DEV = os.environ.get("DEV", "")

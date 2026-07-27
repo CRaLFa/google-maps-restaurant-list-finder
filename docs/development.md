@@ -12,7 +12,7 @@ cp .env.example .env                            # 環境変数を埋める
 go test ./... && go run ./cmd/server            # サーバ (http://localhost:8080)
 ```
 
-すべてのスクリプトはリポジトリのルートから実行する想定 (例: `python3 scripts/fetch_missing_lists.py`)。
+すべてのスクリプトはリポジトリのルートから実行する想定 (例: `python3 scripts/adb/fetch_missing_lists.py`)。
 
 ## 環境変数
 
@@ -66,13 +66,17 @@ Web 版の DevTools コンソールで抽出する方式も試したが、一度
 
 読み書きはすべて Firestore に対して行う。実行前に `.env` を用意すること。
 
-- [`scripts/fetch_share_urls.py`](../scripts/fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を記録する。
+端末を繋ぐ 3 本は [`scripts/adb/`](../scripts/adb/) にまとめてある。
+新しいエリアを足すときにしか動かさず、日常的に触るのは Web アプリの方だから。
+`scripts/` 直下に残しているのは、端末を必要としないもの (`store.py` / `locations.py` / `fetch_coords.py` / `import_tsv.py`) だけ。
+
+- [`scripts/adb/fetch_share_urls.py`](../scripts/adb/fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を記録する。
   既知の名前はスキップするため resume-safe。
-- [`scripts/fetch_missing_lists.py`](../scripts/fetch_missing_lists.py) — 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、
+- [`scripts/adb/fetch_missing_lists.py`](../scripts/adb/fetch_missing_lists.py) — 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、
   エリア検索から未フォローのリストを開いて共有 URL を取得する。
   フォロー (保存) するのはトップリストのみ。
   `SEED=data/seed.tsv` を渡すと、まだ 1 件も無い新規エリアも対象にできる。
-- [`scripts/delete_lists.py`](../scripts/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外を一括削除 (フォロー解除) する。
+- [`scripts/adb/delete_lists.py`](../scripts/adb/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外を一括削除 (フォロー解除) する。
   **端末側の削除は不可逆。**
   Firestore のドキュメントは消さず `followed` を false にするので、共有 URL からの再フォローで復元できる。
 - [`scripts/fetch_coords.py`](../scripts/fetch_coords.py) — **adb 不要。**
