@@ -216,8 +216,18 @@ gcloud services enable \
 3. Firestore を Native モードで作成する (リージョンは `asia-northeast1`)。
 
 ```bash
-gcloud firestore databases create --location=asia-northeast1 --type=firestore-native
+gcloud firestore databases create --database=restaurant-lists \
+  --location=asia-northeast1 --type=firestore-native
 ```
+
+**`--database` を付けて名前付きデータベースにする。**
+`--database` を省くと `(default)` になるが、`(default)` は**リネームできない**。
+`gcloud firestore databases` に `rename` は無く、`update` で変えられるのは
+`--concurrency-mode` / `--delete-protection` / `--enable-pitr` / `--type` だけ。
+後から名前を付けたくなったら、新しいデータベースを作って移し替え、`(default)` を消すしかない。
+
+同じプロジェクトに別用途のデータベースを足す可能性があるなら、最初から名前を付けておくこと。
+名前付きにするとクライアント側で明示指定が必要になる (`FIRESTORE_DATABASE` 環境変数)。
 
 4. Cloud Run 用のサービスアカウントを作り、`roles/datastore.user` を付与する。
 5. reCAPTCHA Enterprise のスコアベースのサイトキーを作成する。
@@ -307,7 +317,7 @@ gcloud run deploy google-maps-restaurant-list-finder \
   --max-instances 2 \
   --allow-unauthenticated \
   --set-build-env-vars GOOGLE_BUILDABLE=./cmd/server \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=<PROJECT>,MAPS_API_KEY=<KEY>,MAPS_MAP_ID=<MAP_ID>,RECAPTCHA_SITE_KEY=<SITE_KEY>
+  --set-env-vars GOOGLE_CLOUD_PROJECT=<PROJECT>,FIRESTORE_DATABASE=restaurant-lists,MAPS_API_KEY=<KEY>,MAPS_MAP_ID=<MAP_ID>,RECAPTCHA_SITE_KEY=<SITE_KEY>
 ```
 
 `GOOGLE_BUILDABLE` は必須。

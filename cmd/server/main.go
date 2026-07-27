@@ -87,11 +87,18 @@ func main() {
 	if project == "" {
 		log.Fatal("GOOGLE_CLOUD_PROJECT が未設定")
 	}
-	fsClient, err := firestore.NewClient(ctx, project)
+	// 別用途のデータベースを同じプロジェクトに足せるよう、名前付きデータベースに置いている。
+	// 未設定なら (default) を指すが、このプロジェクトの (default) は移行時に削除済み。
+	database := os.Getenv("FIRESTORE_DATABASE")
+	if database == "" {
+		database = "(default)"
+	}
+	fsClient, err := firestore.NewClientWithDatabase(ctx, project, database)
 	if err != nil {
 		log.Fatalf("Firestore クライアントの生成に失敗: %v", err)
 	}
 	defer fsClient.Close()
+	log.Printf("Firestore: project=%s database=%s", project, database)
 
 	s := &server{
 		fs:       fsClient,

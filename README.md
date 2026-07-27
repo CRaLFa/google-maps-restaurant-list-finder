@@ -70,6 +70,10 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
 収集済みリストを地図から探せる Web アプリ。
 正データは Firestore。設計と移行手順は [`docs/webapp-design.md`](./docs/webapp-design.md) を参照。
 
+Firestore は `(default)` ではなく名前付きデータベース `restaurant-lists` に置いている。
+同じプロジェクトに別用途のデータベースを足せるようにするため。
+`(default)` はリネームできないので、名前付きにするなら作り直すしかない。
+
 - [`scripts/store.py`](./scripts/store.py) — Firestore アクセスの集約先。ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。`python3 scripts/store.py` で自己チェックが走る。
 - [`scripts/import_tsv.py`](./scripts/import_tsv.py) — `share-urls.tsv` と `coords.tsv` を結合して Firestore の `lists` へ投入する。冪等。`--dry-run` で Firestore に触らず検証だけ行う。移行後も TSV からの復旧用に残す。
 - [`cmd/server/main.go`](./cmd/server/main.go) — Cloud Run で動かす静的配信 + API サーバ。`GET /api/lists` / `POST /api/reports` / `GET /api/config`。
@@ -91,6 +95,7 @@ go test ./... && go run ./cmd/server            # サーバ
 | --- | --- |
 | `GOOGLE_CLOUD_PROJECT` | **必須。** Firestore を置いている GCP プロジェクト |
 | `GOOGLE_CLOUD_QUOTA_PROJECT` | API 呼び出しのクォータの付け先。ADC が別プロジェクトを向いているとき用 |
+| `FIRESTORE_DATABASE` | **必須。** 使う Firestore データベース (`restaurant-lists`) |
 | `MAPS_API_KEY` | Maps JavaScript API のキー。空にすると地図が出ない (ツリーと検索は動く) |
 | `MAPS_MAP_ID` | 省くと開発用の `DEMO_MAP_ID` にフォールバックする |
 | `RECAPTCHA_SITE_KEY` | 空にすると bot 検証を飛ばす。ローカル開発時のみ空にする |

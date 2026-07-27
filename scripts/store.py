@@ -7,10 +7,12 @@
 認証はローカルでは `gcloud auth application-default login`、
 Cloud Run 上ではサービスアカウントの ADC で通る。
 プロジェクトは環境変数 `GOOGLE_CLOUD_PROJECT` か gcloud の既定を使う。
+データベースは環境変数 `FIRESTORE_DATABASE` で指定する。
 
 環境変数はリポジトリルートの `.env` からも読む (`.env.example` を参照)。
 すでに設定されている値は上書きしないので、export した値の方が勝つ。
 """
+import os
 import re
 
 from dotenv import load_dotenv
@@ -30,12 +32,17 @@ _db = None
 # find_dotenv() はこのファイルの位置から親を辿るため、実行時のカレントディレクトリに依存しない。
 load_dotenv()
 
+# 使う Firestore データベース。
+# 別用途のデータベースを同じプロジェクトに足せるよう、名前付きデータベースに置いている。
+# 未設定なら (default) を指すが、このプロジェクトの (default) は移行時に削除済み。
+DATABASE = os.environ.get("FIRESTORE_DATABASE") or "(default)"
+
 
 def db():
     """Firestore クライアントを遅延生成して使い回す。"""
     global _db
     if _db is None:
-        _db = firestore.Client()
+        _db = firestore.Client(database=DATABASE)
     return _db
 
 
