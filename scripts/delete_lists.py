@@ -3,9 +3,11 @@
 
 方針:
 - 「〇〇: トップリスト」は残す (削除しない)。
-- それ以外 (トレンド / 地元で人気 等) のうち share-urls.tsv に記録済みのものを削除する。
-- share-urls.tsv に無いリストは削除せず、共有 URL を収集して share-urls.tsv に追記する
+- それ以外 (トレンド / 地元で人気 等) のうち Firestore に記録済みのものを削除する。
+- Firestore に無いリストは削除せず、共有 URL を収集して Firestore に記録する
   (未記録のものを消さないための安全網)。
+- 削除は端末からフォローを外すだけで、Firestore のドキュメントは消さない。
+  共有 URL は再フォローでの復元に使うので残し、followed を false にする。
 
 削除は不可逆 (確認ダイアログも Undo も無い。「リストを削除」タップで即フォロー解除)。
 先頭固定ではなく、上から順に「残す/削除/追記」を判定して処理する。
@@ -19,25 +21,27 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fetch_share_urls as g  # noqa: E402
+import locations  # noqa: E402
+import store  # noqa: E402
 
 g.DEV = os.environ.get("DEV", g.DEV)
-TSV = os.environ.get("OUT", "data/share-urls.tsv")
 LIMIT = int(os.environ.get("LIMIT", "0"))  # 0 なら全件。削除件数の上限
 KEEP_SUFFIX = "トップリスト"  # この接尾辞のリストは削除しない
 
 
-def load_known(path):
-    names = set()
+def load_known():
+    """Firestore から {リスト名: [所在地, ...]} と既知 URL の集合を読む。
+
+    端末の UI 上は同名の区を見分けられないため、リスト名から所在地は一意に決まらない。
+    所在地の候補をまとめて持ち、followed の更新はその全部に当てる。
+    """
+    locs = {}
     urls = set()
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                # 3 列目に同名の区を区別する市名が入ることがあるので分割数を絞らない。
-                cols = line.rstrip("\n").split("\t")
-                if len(cols) >= 2:
-                    names.add(cols[0])
-                    urls.add(cols[1])
-    return names, urls
+    for r in store.all_lists():
+        locs.setdefault(r["name"], []).append(r["loc"])
+        if r.get("url"):
+            urls.add(r["url"])
+    return locs, urls
 
 
 def suffix(name):
@@ -68,8 +72,8 @@ def delete_one(name, pt):
 
 
 def main():
-    known_names, known_urls = load_known(TSV)
-    print(f"開始: 記録済み {len(known_names)} 件 / KEEP={KEEP_SUFFIX} / LIMIT={LIMIT or '全件'}")
+    known_locs, known_urls = load_known()
+    print(f"開始: 記録済み {len(known_locs)} 件 / KEEP={KEEP_SUFFIX} / LIMIT={LIMIT or '全件'}")
 
     # adb-clip の動作確認。clip は未記録リストの URL 追記にしか使わないので、
     # 使えなくても削除自体は進める (その場合、未記録リストは追記せず [skip-unknown] で残す)。
@@ -128,8 +132,8 @@ def main():
             print(f"[keep] {name}")
             continue
 
-        if name not in known_names:
-            # 記録に無い → 削除せず共有 URL を収集して追記する。
+        if name not in known_locs:
+            # 記録に無い → 削除せず共有 URL を収集して記録する。
             if not clip_ok:
                 # clip が使えないと URL 収集できない。安全側に倒して削除せず残す。
                 processed.add(name)
@@ -138,10 +142,14 @@ def main():
                 continue
             attempts[name] = attempts.get(name, 0) + 1
             url, reason = g.get_share_url(pt, known_urls)
+            if url and not g.record(name, url):
+                # 所在地が決まらないと Firestore に書けない。消さずに残す。
+                processed.add(name)
+                kept += 1
+                print(f"[skip-unknown] {name} (所在地が未定義のため保持) -> {url}")
+                continue
             if url:
-                with open(TSV, "a", encoding="utf-8") as f:
-                    f.write(f"{name}\t{url}\n")
-                known_names.add(name)
+                known_locs[name] = [locations.resolve(name.split(": ", 1)[0])]
                 known_urls.add(url)
                 processed.add(name)
                 appended += 1
@@ -157,6 +165,8 @@ def main():
         attempts[name] = attempts.get(name, 0) + 1
         ok, reason = delete_one(name, pt)
         if ok:
+            # 端末からフォローを外しただけ。共有 URL は復元用に残し followed だけ落とす。
+            store.set_followed(name, known_locs[name], False)
             processed.add(name)
             deleted += 1
             print(f"[{deleted}] delete {name}")

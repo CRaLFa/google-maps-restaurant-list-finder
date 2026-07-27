@@ -8,7 +8,12 @@
 クリップボードが更新されないまま前のリストの URL を読んでしまう事故を防ぐため、
 コピー前に番兵文字列を書き込み、読み取り結果が番兵のままなら失敗として扱う。
 さらに既に記録済みの URL と一致した場合も失敗とする。
-結果は TSV (リスト名 \t URL) に逐次追記するので、中断しても再開できる。
+結果は Firestore の lists へ 1 件ずつ書き込むので、中断しても再開できる。
+
+所在地は locations.py のテーブルから引く。
+端末の UI 上は同名の区 (中央区・北区) を見分けられないため所在地が決まらない。
+その場合は書き込まずに警告を出すので、locations.py を更新してから再実行すること。
+再取得は 1 件数秒なので、保留の仕組みは持たない。
 """
 import os
 import re
@@ -16,8 +21,11 @@ import subprocess
 import sys
 import time
 
-DEV = os.environ.get("DEV", "100.64.1.35:42931")
-OUT = os.environ.get("OUT", "data/share-urls.tsv")
+import locations
+import store
+
+# 端末シリアル。ワイヤレスデバッグはポートが毎回変わるので .env か実行時に指定する。
+DEV = os.environ.get("DEV", "")
 MAX = int(os.environ.get("MAX", "0"))  # 0 なら全件
 CLIP = "/data/local/tmp/clip"  # 端末上の adb-clip
 
@@ -31,6 +39,9 @@ def log(msg):
 
 
 def adb(*args, timeout=90):
+    if not DEV:
+        sys.exit("環境変数 DEV に端末シリアルを設定すること"
+                 " (例: DEV=192.0.2.1:5555)。`adb devices` で確認できる。")
     try:
         r = subprocess.run(
             ["adb.exe", "-s", DEV, *args], capture_output=True, text=True, timeout=timeout
@@ -205,19 +216,25 @@ def get_share_url(pt, known_urls):
     return urls[0], ""
 
 
+def record(name, url):
+    """取得した 1 件を Firestore へ記録する。所在地が決まらなければ False。"""
+    area = name.split(": ", 1)[0]
+    loc = locations.resolve(area)
+    if loc is None:
+        return False
+    store.upsert([(store.doc_id(loc, name), store.build(name, url, loc))])
+    return True
+
+
 def main():
+    # 端末の UI 上は同名の区を見分けられないため、
+    # 名前が一致すれば取得済みとして扱う (所在地違いの重複を作らない)。
     done = {}
     urls_seen = set()
-    if os.path.exists(OUT):
-        with open(OUT, encoding="utf-8") as f:
-            for line in f:
-                # 3 列目に同名の区を区別する市名が入ることがあるので分割数を絞らない。
-                # 端末の UI 上は同名の区を見分けられないため、
-                # ここでは名前が一致すれば取得済みとして扱う (重複行を作らない)。
-                cols = line.rstrip("\n").split("\t")
-                if len(cols) >= 2:
-                    done[cols[0]] = cols[1]
-                    urls_seen.add(cols[1])
+    for r in store.all_lists():
+        done[r["name"]] = r.get("url")
+        if r.get("url"):
+            urls_seen.add(r["url"])
     log(f"開始: 取得済み {len(done)} 件")
 
     # adb-clip が使えるか事前確認する。
@@ -231,6 +248,7 @@ def main():
         return 1
 
     attempts = {}
+    unresolved = []
     stable = 0
     got = 0
     for _loop in range(20000):
@@ -257,13 +275,15 @@ def main():
         name, pt = todo[0]
         attempts[name] = attempts.get(name, 0) + 1
         url, reason = get_share_url(pt, urls_seen)
-        if url:
-            with open(OUT, "a", encoding="utf-8") as f:
-                f.write(f"{name}\t{url}\n")
+        if url and record(name, url):
             done[name] = url
             urls_seen.add(url)
             got += 1
             log(f"[{len(done)}] {name}\t{url}")
+        elif url:
+            # URL は取れたが所在地が決まらない。locations.py を直して再実行させる。
+            unresolved.append(f"{name}\t{url}")
+            log(f"[SKIP] {name}: 所在地が未定義 -> {url}")
         else:
             log(f"[FAIL {attempts[name]}/2] {name}: {reason}")
             if not ensure_list_screen():
@@ -275,9 +295,15 @@ def main():
             break
 
     failed = sorted(n for n, c in attempts.items() if c >= 2 and n not in done)
-    log(f"完了: 合計 {len(done)} 件 / 未取得 {len(failed)} 件")
+    log(f"完了: 合計 {len(done)} 件 / 未取得 {len(failed)} 件"
+        f" / 所在地未定義 {len(unresolved)} 件")
     if failed:
         log("未取得: " + ", ".join(failed))
+    if unresolved:
+        log("所在地が決まらず記録しなかったリスト。"
+            "locations.py の CITIES / WARDS / DISTRICTS / METRO を更新して再実行すること:")
+        for u in unresolved:
+            log("  " + u)
     return 0
 
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""エリアごとの中心座標を取得して data/coords.tsv に記録する。
+"""エリアごとの中心座標を取得して Firestore の lists に記録する。
 
-share-urls.tsv からエリアごとに代表 1 件 (トップリスト優先) の共有 URL を選び、
+Firestore からエリアごとに代表 1 件 (トップリスト優先) の共有 URL を選び、
 ブラウザで開いて地図の中心座標を読み取る。
+座標はエリア単位の値なので、同一エリアの 3 リスト全部に同じ値を書き込む。
 同一エリアの 3 リスト (トップリスト / トレンド / 地元で人気) は中心が数 km ずれるが、
 エリアの代表座標としてはトップリストの中心で足りるという割り切り。
 
@@ -14,20 +15,19 @@ curl では書き換え前の HTML しか取れないため、agent-browser で�
 また、リストの中心が反映されないとブラウザの既定センター (現在地) がそのまま残る。
 素の google.com/maps を開いて既定センターを実測しておき、その値は「未確定」として弾く。
 
-data/coords.tsv に追記していく resume-safe な作り。
-既に取得済みのエリアはスキップするので、中断しても再実行すれば続きから走る。
+1 エリア取るごとに書き込む resume-safe な作り。
+lat が既に入っているエリアはスキップするので、中断しても再実行すれば続きから走る。
 
 リポジトリのルートから実行する想定 (例: `python3 scripts/fetch_coords.py`)。
+認証は `gcloud auth application-default login` で足りる。
 """
 
-import os
 import re
 import subprocess
 import sys
 import time
 
-SRC = os.environ.get("SRC", "data/share-urls.tsv")
-OUT = os.environ.get("OUT", "data/coords.tsv")
+import store
 
 # URL 中の `@lat,lng,zoomz` 部分
 COORD_RE = re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+),\d+(?:\.\d+)?z")
@@ -80,42 +80,39 @@ def fetch(url: str, default: tuple[str, str] | None) -> tuple[str, str] | None:
 
 def main() -> None:
     # エリアの代表 URL。トップリストがあればそれを、無ければ最初に見つかった 1 件を使う。
+    # 併せて、既に座標が入っているエリアを取得済みとして拾う。
     areas: dict[tuple[str, str], str] = {}
-    for line in open(SRC, encoding="utf-8"):
-        cols = line.rstrip("\n").split("\t")
-        if len(cols) < 2 or not cols[1]:
-            continue
-        name, url, loc = cols[0], cols[1], cols[2] if len(cols) > 2 else ""
-        area, _, kind = name.partition(": ")
-        if kind == "トップリスト" or (area, loc) not in areas:
-            areas[(area, loc)] = url
-
     done = set()
-    if os.path.exists(OUT):
-        for line in open(OUT, encoding="utf-8"):
-            cols = line.rstrip("\n").split("\t")
-            if len(cols) >= 2:
-                done.add((cols[0], cols[1]))
-
-    # ブラウザの既定センター (リストの中心が反映されなかったときに残る値) を実測しておく。
-    default = fetch("https://www.google.com/maps", None)
-    print(f"既定センター: {default}", flush=True)
+    for r in store.all_lists():
+        key = (r["area"], r["loc"])
+        if r.get("lat") is not None:
+            done.add(key)
+        if not r.get("url"):
+            continue
+        if r["kind"] == "トップリスト" or key not in areas:
+            areas[key] = r["url"]
 
     todo = [(k, u) for k, u in areas.items() if k not in done]
     print(f"全 {len(areas)} エリア / 取得済み {len(done)} / 今回 {len(todo)}", flush=True)
+    if not todo:
+        return
+
+    # ブラウザの既定センター (リストの中心が反映されなかったときに残る値) を実測しておく。
+    # 20 秒かかるので、取得対象が無いときは開かない。
+    default = fetch("https://www.google.com/maps", None)
+    print(f"既定センター: {default}", flush=True)
 
     failed = []
-    with open(OUT, "a", encoding="utf-8") as f:
-        for i, ((area, loc), url) in enumerate(todo, 1):
-            got = fetch(url, default)
-            if not got:
-                failed.append(f"{loc} / {area}")
-                print(f"[{i}/{len(todo)}] ★失敗 {loc} / {area}", flush=True)
-                continue
-            lat, lng = got
-            f.write(f"{area}\t{loc}\t{lat}\t{lng}\n")
-            f.flush()
-            print(f"[{i}/{len(todo)}] {loc} / {area} -> {lat},{lng}", flush=True)
+    for i, ((area, loc), url) in enumerate(todo, 1):
+        got = fetch(url, default)
+        if not got:
+            failed.append(f"{loc} / {area}")
+            print(f"[{i}/{len(todo)}] ★失敗 {loc} / {area}", flush=True)
+            continue
+        lat, lng = got
+        # 同一エリアの全リストに同じ座標を書き込む。1 件ずつ確定させて resume-safe を保つ。
+        n = store.update_coords(loc, area, lat, lng)
+        print(f"[{i}/{len(todo)}] {loc} / {area} -> {lat},{lng} ({n} 件更新)", flush=True)
 
     print(f"完了 (失敗 {len(failed)} 件)", flush=True)
     if failed:
