@@ -4,8 +4,8 @@
 初回移行に使い、移行後は「TSV からの復旧」用に残している。
 冪等なので何度実行しても同じ結果になる。
 
-    python3 scripts/import_tsv.py --dry-run   # 検証のみ。Firestore に触らない
-    python3 scripts/import_tsv.py             # 投入
+    python3 scripts/restore/import_tsv.py --dry-run   # 検証のみ。Firestore に触らない
+    python3 scripts/restore/import_tsv.py             # 投入
 
 読むのは data/archive/ に凍結した移行時点の TSV で、以後更新されない。
 移行後に増えたエリアは復旧できないため、これは最後の手段。
