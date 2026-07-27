@@ -70,8 +70,6 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
 収集済みリストを地図から探せる Web アプリ。
 正データは Firestore。設計と移行手順は [`docs/webapp-design.md`](./docs/webapp-design.md) を参照。
 
-GCP プロジェクトは `sandbox-morita-1-441408` (Firestore Native / `asia-northeast1`)。
-
 - [`scripts/store.py`](./scripts/store.py) — Firestore アクセスの集約先。ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。`python3 scripts/store.py` で自己チェックが走る。
 - [`scripts/import_tsv.py`](./scripts/import_tsv.py) — `share-urls.tsv` と `coords.tsv` を結合して Firestore の `lists` へ投入する。冪等。`--dry-run` で Firestore に触らず検証だけ行う。移行後も TSV からの復旧用に残す。
 - [`cmd/server/main.go`](./cmd/server/main.go) — Cloud Run で動かす静的配信 + API サーバ。`GET /api/lists` / `POST /api/reports` / `GET /api/config`。
@@ -80,14 +78,32 @@ GCP プロジェクトは `sandbox-morita-1-441408` (Firestore Native / `asia-no
 ```bash
 uv venv && uv pip install -r requirements.txt   # Python 側の依存
 gcloud auth application-default login           # ローカル実行時の認証
+cp .env.example .env                            # 環境変数を埋める
 python3 scripts/import_tsv.py --dry-run         # TSV 側の検証のみ
 go test ./... && go run ./cmd/server            # サーバ
 ```
 
-サーバは環境変数 `GOOGLE_CLOUD_PROJECT` (必須) / `MAPS_API_KEY` / `MAPS_MAP_ID` / `RECAPTCHA_SITE_KEY` / `PORT` を読む。
+### 環境変数
+
+`.env` に書く。雛形は [`.env.example`](./.env.example)。`.env` はコミットしない (API キーが入るため)。
+
+| 変数 | 用途 |
+| --- | --- |
+| `GOOGLE_CLOUD_PROJECT` | **必須。** Firestore を置いている GCP プロジェクト |
+| `GOOGLE_CLOUD_QUOTA_PROJECT` | API 呼び出しのクォータの付け先。ADC が別プロジェクトを向いているとき用 |
+| `MAPS_API_KEY` | Maps JavaScript API のキー。空にすると地図が出ない (ツリーと検索は動く) |
+| `MAPS_MAP_ID` | 省くと開発用の `DEMO_MAP_ID` にフォールバックする |
+| `RECAPTCHA_SITE_KEY` | 空にすると bot 検証を飛ばす。ローカル開発時のみ空にする |
+| `PORT` | サーバの待ち受けポート。省略時 8080 |
+
+読み込みは Go が [godotenv](https://github.com/joho/godotenv)、Python が [python-dotenv](https://github.com/theskumar/python-dotenv)。
+どちらも**既存の環境変数を上書きしない**ので、`MAPS_MAP_ID=xxx go run ./cmd/server` のように前置きすれば一時的に差し替えられる。
+本番 (Cloud Run) は `.env` を持たず、`--set-env-vars` で渡した値で動く。
+
+Python 側は `scripts/store.py` の位置から親を辿るためカレントディレクトリに依存しないが、
+**Go 側はカレントディレクトリの `.env` しか見ない**のでリポジトリのルートから起動すること。
+
 `MAPS_API_KEY` はクライアントに露出するので、GCP コンソール側で HTTP リファラ制限をかけること。
-`MAPS_MAP_ID` を省くと開発用の `DEMO_MAP_ID` にフォールバックする。
-`RECAPTCHA_SITE_KEY` を空にすると bot 検証を飛ばすので、ローカル開発時のみ空にする。
 
 ## ドキュメント
 

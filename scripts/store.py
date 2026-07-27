@@ -7,9 +7,13 @@
 認証はローカルでは `gcloud auth application-default login`、
 Cloud Run 上ではサービスアカウントの ADC で通る。
 プロジェクトは環境変数 `GOOGLE_CLOUD_PROJECT` か gcloud の既定を使う。
+
+環境変数はリポジトリルートの `.env` からも読む (`.env.example` を参照)。
+すでに設定されている値は上書きしないので、export した値の方が勝つ。
 """
 import re
 
+from dotenv import load_dotenv
 from google.cloud import firestore
 
 LISTS = "lists"
@@ -20,6 +24,11 @@ REPORTS = "reports"
 PREF_RE = re.compile(r"^(北海道|東京都|大阪府|京都府|.{2,3}?県)")
 
 _db = None
+
+# import した時点で .env を読む。各スクリプトが個別に呼ばなくて済むようにする。
+# 既存の環境変数は上書きしないので、export した値や実行時の前置きの方が勝つ。
+# find_dotenv() はこのファイルの位置から親を辿るため、実行時のカレントディレクトリに依存しない。
+load_dotenv()
 
 
 def db():

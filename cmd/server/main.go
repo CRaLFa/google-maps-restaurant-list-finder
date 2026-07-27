@@ -23,6 +23,7 @@ import (
 	"cloud.google.com/go/firestore"
 	recaptcha "cloud.google.com/go/recaptchaenterprise/v2/apiv1"
 	recaptchapb "cloud.google.com/go/recaptchaenterprise/v2/apiv1/recaptchaenterprisepb"
+	"github.com/joho/godotenv"
 	"google.golang.org/api/iterator"
 )
 
@@ -76,6 +77,11 @@ type listsCache struct {
 }
 
 func main() {
+	// .env があれば読み込む。ローカル開発で毎回 export しなくて済むようにするためのもの。
+	// godotenv は既存の環境変数を上書きしないので、Cloud Run の --set-env-vars が常に勝つ。
+	// ファイルが無いのが通常の状態 (本番) なのでエラーは無視する。
+	_ = godotenv.Load()
+
 	ctx := context.Background()
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if project == "" {

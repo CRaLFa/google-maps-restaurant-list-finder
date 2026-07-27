@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	cloud.google.com/go/firestore v1.24.0
 	cloud.google.com/go/recaptchaenterprise/v2 v2.26.0
+	github.com/joho/godotenv v1.5.1
 	google.golang.org/api v0.290.0
 )
 
