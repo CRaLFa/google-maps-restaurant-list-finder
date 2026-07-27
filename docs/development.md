@@ -56,8 +56,8 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
 - [`scripts/store.py`](../scripts/store.py) — Firestore アクセスの集約先。
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
-- [`scripts/import_tsv.py`](../scripts/import_tsv.py) — `share-urls.tsv` と `coords.tsv` を結合して Firestore の `lists` へ投入する。
-  冪等。`--dry-run` で Firestore に触らず検証だけ行う。TSV からの復旧用に残している。
+- [`scripts/import_tsv.py`](../scripts/import_tsv.py) — `data/archive/` の TSV を結合して Firestore の `lists` へ投入する。
+  冪等。`--dry-run` で Firestore に触らず検証だけ行う。移行時点への復旧用に残している。
 
 ## 収集スクリプト (adb 方式)
 
@@ -85,9 +85,6 @@ Web 版の DevTools コンソールで抽出する方式も試したが、一度
   更新しないと収集スクリプトがそのリストを記録できない。
   同名の区 (中央区・北区) は端末から区別できないため所在地を手で与える必要がある。
   `python3 scripts/locations.py` で自己チェック。
-- [`scripts/set_locations.py`](../scripts/set_locations.py) — `data/share-urls.tsv` の 3 列目 (所在地) を `locations.py` の対応表からセットする。
-  TSV 側の整合を保つためのもの。冪等。
-- [`scripts/normalize_tsv.py`](../scripts/normalize_tsv.py) — `data/share-urls.tsv` を全行 3 カラムに揃え、codepoint 順に並べ直す。
 - [`tools/adb-clip/`](../tools/adb-clip/) — クリップボード読み書き用に vendor した [polygraphene/adb-clip](https://github.com/polygraphene/adb-clip)。
 
 クリップボードは Android 10 以降フォアグラウンド以外から読めないため、adb-clip を `app_process` 経由で使って回避している。
@@ -101,24 +98,64 @@ Web 版の DevTools コンソールで抽出する方式も試したが、一度
 - adb 操作中は端末を画面オン + ロック解除のままにする (クリップボード読み取り・スリープ対策)。
 - 収集される UI dump には連絡先候補等の個人情報が混じり得るため、**dump をリポジトリやログに残さないこと。**
 
-## データファイル
+## データ
 
-正データは Firestore。以下の TSV は初回インポート元と復旧用として残している。
+正データは Firestore の名前付きデータベース `restaurant-lists`。
+コレクションは `lists` (収集したリスト) と `reports` (閲覧者からの報告) の 2 つ。
+フィールドの定義は [`webapp-design.md`](./webapp-design.md) のデータモデルを参照。
 
-- [`data/share-urls.tsv`](../data/share-urls.tsv) — `リスト名 <TAB> 共有 URL <TAB> 所在地` の TSV。
-  フォロー中かどうかに関わらず、収集したエリア別リストをすべて記録する。
-  削除したリストのバックアップも兼ねる (URL から再フォローで復元可能)。
-  1 列目は Google 上の実際のリスト名 (「中区」「渋谷」等、全国で同名になり得る)。
-  3 列目は同名エリアを区別するための所在地で、都道府県から始まる住所表記
-  (`北海道` / `愛知県名古屋市` / `東京都港区` のように粒度はエリア種別で変わる) を入れる。
-  3 列目は必須で、区別が不要なエリアも都道府県名だけは入れる (`東京都` エリアの所在地は `東京都`)。
-  Firestore ではドキュメント ID の一部になるため空を許さない。
-  一意キーは (1 列目, 3 列目) の組。
-- [`data/coords.tsv`](../data/coords.tsv) — エリアごとの中心座標。`エリア名 <TAB> 所在地 <TAB> 緯度 <TAB> 経度` の TSV。
-  キーは `share-urls.tsv` と同じ (エリア名, 所在地) の組で、リスト種別の接尾辞は付かない。
+`lists` の要点だけ再掲する。
+
+- ドキュメント ID は `{所在地}|{リスト名}` の決定論的な値。
+  一意キー (リスト名, 所在地) をそのまま ID にしているので、同期は冪等な upsert で済む。
+- リスト名は Google 上の実際の名前 (「中区」「渋谷」等、全国で同名になり得る)。
+- 所在地 (`loc`) は同名エリアを区別するための、都道府県から始まる住所表記。
+  粒度はエリア種別で変わる (`北海道` / `愛知県名古屋市` / `東京都港区`)。
+  **必須。** ドキュメント ID の一部なので空を許さない。
+  区別が不要なエリアも都道府県名だけは入れる (`東京都` エリアの所在地は `東京都`)。
+  この値がそのまま親のフルパスになり、フロントのツリーの階層になる。
+- 座標 (`lat` / `lng`) はエリア単位の値をリスト側に非正規化して持つ。
   同一エリアでも 3 リストの中心は数 km ずれるため、トップリストの中心を代表値としている。
+- フォロー中かどうかに関わらず、収集したエリア別リストをすべて記録する。
+  端末から削除したリストも `followed` を false にして残す (URL から再フォローで復元可能)。
+
+### ファイルとして残しているもの
+
 - [`data/seed.tsv`](../data/seed.tsv) — `fetch_missing_lists.py` の `SEED` に渡す新規エリア候補の一覧。
   試した検索語・所在地の記録を兼ねるため、取得済みの行も削除せず残している。
+- [`data/archive/`](../data/archive/) — Firestore へ移行した時点の TSV を凍結したもの。
+  `share-urls.tsv` (リスト名 / 共有 URL / 所在地) と `coords.tsv` (エリア名 / 所在地 / 緯度 / 経度)。
+  以後更新しない。読むのは `import_tsv.py` と `tree_check.js` だけ。
+
+### バックアップと復旧
+
+Firestore のスケジュールバックアップを日次で取る。**未設定なら最初に一度だけ実行する。**
+
+```bash
+gcloud firestore backups schedules create --database=restaurant-lists \
+  --recurrence=daily --retention=7d
+```
+
+設定内容と取得済みのバックアップの確認。
+
+```bash
+gcloud firestore backups schedules list --database=restaurant-lists
+gcloud firestore backups list --location=asia-northeast1
+```
+
+リストアは既存のデータベースに上書きできず、**新しいデータベースが作られる。**
+
+```bash
+gcloud firestore databases restore \
+  --source-backup=projects/<PROJECT>/locations/asia-northeast1/backups/<BACKUP_ID> \
+  --destination-database=restaurant-lists-restored
+```
+
+復旧後は `FIRESTORE_DATABASE` を新しい名前に向ける。
+Cloud Run 側は `gcloud run services update --set-env-vars FIRESTORE_DATABASE=...` で切り替わる。
+
+バックアップが失われた場合の最後の手段が `import_tsv.py` による `data/archive/` からの復元。
+移行時点の 571 件に戻るだけで、それ以降に増えたエリアは復旧できない。
 
 ### 収録内容 (2026-07-27 時点)
 

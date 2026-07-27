@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """share-urls.tsv と coords.tsv を結合して Firestore の lists へ投入する。
 
-初回移行に使い、移行後も「TSV からの復旧」用に残す。
+初回移行に使い、移行後は「TSV からの復旧」用に残している。
 冪等なので何度実行しても同じ結果になる。
 
     python3 scripts/import_tsv.py --dry-run   # 検証のみ。Firestore に触らない
     python3 scripts/import_tsv.py             # 投入
+
+読むのは data/archive/ に凍結した移行時点の TSV で、以後更新されない。
+移行後に増えたエリアは復旧できないため、これは最後の手段。
+通常の復旧には Firestore のスケジュールバックアップからのリストアを使う。
 
 結合キーはエリア名と所在地の組。
 どちらか片方にしか無いエリアがあれば投入前に落とす。
@@ -15,8 +19,8 @@ import sys
 
 import store
 
-URLS = os.environ.get("URLS", "data/share-urls.tsv")
-COORDS = os.environ.get("COORDS", "data/coords.tsv")
+URLS = os.environ.get("URLS", "data/archive/share-urls.tsv")
+COORDS = os.environ.get("COORDS", "data/archive/coords.tsv")
 DRY_RUN = "--dry-run" in sys.argv
 
 EXPECTED_ROWS = 571

@@ -44,7 +44,7 @@ Google 公式のエリア別リストはまさに後者にあたる。
 ## ドキュメント
 
 - [`docs/development.md`](./docs/development.md) — 開発ガイド。
-  セットアップ、環境変数、収集スクリプトの使い方、データファイルの形式。
+  セットアップ、環境変数、収集スクリプトの使い方、Firestore のデータとバックアップ。
 - [`docs/webapp-design.md`](./docs/webapp-design.md) — Web アプリの設計と、正データを TSV から Firestore へ移した移行ガイド。
   データモデル、API、画面設計、採用しなかった案とその理由。
   末尾に今後の課題 (CI/CD、フロントの TypeScript 化、報告の通知) をまとめている。

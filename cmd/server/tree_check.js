@@ -15,14 +15,16 @@ const ctx = vm.createContext({
 // let 宣言は vm のグローバルに載らないので、取り出す口を足しておく。
 vm.runInContext(src + "\nglobalThis.getRoots = () => roots;", ctx);
 
-// TSV から /api/lists 相当の行を組み立てる。
+// data/archive/ の TSV から /api/lists 相当の行を組み立てる。
+// 正データは Firestore だが、こちらは移行時点で凍結されているぶん
+// 期待値を固定できるので、階層のフィクスチャとしてはむしろ都合が良い。
 const PREF = /^(北海道|東京都|大阪府|京都府|.{2,3}?県)/;
 const coords = new Map();
-for (const line of fs.readFileSync("data/coords.tsv", "utf8").trim().split("\n")) {
+for (const line of fs.readFileSync("data/archive/coords.tsv", "utf8").trim().split("\n")) {
   const [area, pref, lat, lng] = line.split("\t");
   coords.set(pref + "|" + area, { lat: +lat, lng: +lng });
 }
-const rows = fs.readFileSync("data/share-urls.tsv", "utf8").trim().split("\n").map(line => {
+const rows = fs.readFileSync("data/archive/share-urls.tsv", "utf8").trim().split("\n").map(line => {
   const [name, url, loc = ""] = line.split("\t");
   const [area, kind] = name.split(": ");
   const pref = (PREF.exec(loc) || PREF.exec(name) || [""])[0];

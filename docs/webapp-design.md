@@ -328,7 +328,7 @@ TSV 読み書きを Firestore アクセスに差し替える。
 | `fetch_missing_lists.py` | TSV を読んで欠落エリアを算出、追記 | 同上。欠落算出は Firestore からの読み取りに |
 | `delete_lists.py` | TSV を読み、未記録のものは追記 | 同上。削除時は `store.set_followed()` で false に更新 |
 | `fetch_coords.py` | `data/coords.tsv` に追記 | `store.update_coords()` で該当エリアの全リストの `lat`/`lng` を更新 |
-| `set_locations.py` | 3 列目をセット | 対応表を `locations.py` へ切り出し。移行後は新規エリア追加時のみ使用 |
+| `set_locations.py` | 3 列目をセット | 対応表を `locations.py` へ切り出したうえで**廃止** (フェーズ 5)。TSV が無くなり入力を失った |
 | `normalize_tsv.py` | 3 カラム正規化と並べ替え | **廃止。** Firestore にカラムと行順の概念が無い |
 
 改修の順序は `store.py` → `fetch_coords.py` (最小) → `fetch_share_urls.py` → `fetch_missing_lists.py` → `delete_lists.py` を推奨する。
@@ -348,7 +348,10 @@ Firestore では所在地がドキュメント ID の一部なので、記録の
 - 所在地が決まらないリストは Firestore に書かず、名前と URL を警告に出して飛ばす。
   保留の仕組みは持たない。`locations.py` を直して再実行すれば取り直せるうえ、1 件数秒で済むため。
 - `fetch_missing_lists.py` は端末を触る前に対象を絞り、決まらないエリアを先にまとめて報告する。
-- 逆方向の漏れ (データにあるのに `locations.py` が知らないエリア) は `set_locations.py` が検出して落とす。
+- 逆方向の漏れ (データにあるのに `locations.py` が知らないエリア) は移行中は `set_locations.py` が検出していた。
+  フェーズ 5 で同スクリプトを廃止したため、この検査は無くなっている。
+  収集時に `resolve()` が `None` を返せばその場で警告が出るので、実害が出るのは
+  すでに記録済みのエリアの対応表を後から壊した場合だけ。必要になったら書き直す。
 
 ### フェーズ 4: Web アプリ
 
@@ -381,21 +384,43 @@ Go の buildpack はリポジトリ直下の main パッケージを探すが、
 2. その URL を条件に Maps の API キー (リファラ制限 + Maps JavaScript API のみ) と reCAPTCHA のサイトキーを作る。
 3. `gcloud run services update` で残りの環境変数を入れる。
 
-### フェーズ 5: TSV 廃止
+### フェーズ 5: TSV 廃止 (実施済み)
 
-Firestore が正として回り始めたことを確認してから実施する。
+着手前に前提を確認した。
+Firestore に 571 件 / 191 エリア、座標と所在地の欠損 0。
+`import_tsv.py --dry-run` も同じ件数で通り、TSV からの復旧経路が生きていることを確認済み。
 
-- `data/share-urls.tsv` と `data/coords.tsv` を `data/archive/` へ移し、履歴として残す。
-- `README.md` の「データファイル」節を Firestore のデータモデルの説明に差し替える。
-- `normalize_tsv.py` を削除する。
-- 定期バックアップとして Firestore のエクスポートをスケジュールする。
+実施した内容。
+
+- `data/share-urls.tsv` と `data/coords.tsv` を `data/archive/` へ移し、凍結した。
+  参照しているのは `import_tsv.py` (復旧用) と `cmd/server/tree_check.js` (階層のフィクスチャ) だけ。
+- `docs/development.md` の「データファイル」節を Firestore のデータモデルの説明に差し替えた。
+  README には移行前から該当の節が無い (公開向けに整理した際に開発ガイドへ移してある)。
+- `normalize_tsv.py` を削除した。
+- `set_locations.py` も削除した。
+  TSV の 3 列目を埋めるだけのスクリプトで、入力が無くなった。
+  移行後に必要なのは `locations.py` のテーブル更新だけで、所在地の解決は収集スクリプトが実行時に行う。
+- 定期バックアップの方式を決めた (後述)。**設定コマンドの実行はまだ。**
+
+#### バックアップは GCS へのエクスポートではなくスケジュールバックアップにした
+
+当初はエクスポートを Cloud Scheduler で回す想定だったが、Firestore に組み込みのスケジュールバックアップがある。
 
 ```bash
-gcloud firestore export gs://<BUCKET>/backup/$(date +%Y%m%d)
+gcloud firestore backups schedules create --database=restaurant-lists \
+  --recurrence=daily --retention=7d
 ```
 
-**フェーズ 5 は不可逆。**
-バックアップの取得と復旧手順 (`import_tsv.py` またはエクスポートからのリストア) の動作確認を済ませてから進めること。
+- **GCS バケットも Cloud Scheduler もサービスアカウントも要らない。** コマンド 1 個で完結する。
+- リストアは `gcloud firestore databases restore` で行う。
+
+引き換えに、**リストア先は必ず新しいデータベースになる。**
+既存の `restaurant-lists` に上書きはできない。
+復旧時は新しい名前でリストアして `FIRESTORE_DATABASE` を向け直す。
+データベース名を環境変数にしてあるのがそのまま効く。
+
+`import_tsv.py` による `data/archive/` からの復元は最後の手段として残す。
+移行時点の 571 件に戻るだけで、それ以降に増えたエリアは復旧できない。
 
 ## 運用: 報告のトリアージ
 
