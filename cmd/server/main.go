@@ -313,8 +313,9 @@ func (s *server) assess(ctx context.Context, token string) (float64, error) {
 	return float64(res.GetRiskAnalysis().GetScore()), nil
 }
 
-// IP 単位のレート制限。プロセス内カウンタなのでインスタンス数倍まで緩む。
-// ponytail: --max-instances を小さく保つ前提。効かなくなったら Firestore のカウンタへ。
+// IP 単位のレート制限。
+// プロセス内カウンタなので、インスタンスが増えると上限が実質インスタンス数倍まで緩む。
+// --max-instances を小さく保つ前提での割り切りで、効かなくなったら Firestore のカウンタへ移す。
 func (s *server) allow(ip string) bool {
 	now := time.Now()
 	s.rateMu.Lock()

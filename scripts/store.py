@@ -80,6 +80,10 @@ def build(name, url, loc, lat=None, lng=None):
         "followed": kind == "トップリスト",
         "updatedAt": firestore.SERVER_TIMESTAMP,
     }
+    # 座標はエリア単位の値で、片方だけ入っている状態に意味が無い。
+    # 揃っていない呼び出しは黙って捨てず、その場で落とす。
+    if (lat is None) != (lng is None):
+        raise ValueError(f"緯度と経度は両方揃えて渡すこと: lat={lat!r} lng={lng!r}")
     if lat is not None:
         doc["lat"] = float(lat)
         doc["lng"] = float(lng)
@@ -161,4 +165,13 @@ if __name__ == "__main__":
     assert d["followed"] and d["lat"] == 35.66
     assert not build("渋谷: トレンド", "u", "東京都渋谷区")["followed"]
     assert "lat" not in build("渋谷: トレンド", "u", "東京都渋谷区")
+
+    # 緯度と経度は両方揃っているか、両方無いかのどちらかしか許さない。
+    for bad in ((35.66, None), (None, 139.7)):
+        try:
+            build("渋谷: トレンド", "u", "東京都渋谷区", *bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"座標が片方だけの呼び出しが通った: {bad!r}")
     print("store.py の自己チェック OK")
