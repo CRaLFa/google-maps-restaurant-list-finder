@@ -303,12 +303,23 @@ gcloud run deploy google-maps-restaurant-list-finder \
   --service-account <SA> \
   --max-instances 2 \
   --allow-unauthenticated \
+  --set-build-env-vars GOOGLE_BUILDABLE=./cmd/server \
   --set-env-vars GOOGLE_CLOUD_PROJECT=<PROJECT>,MAPS_API_KEY=<KEY>,MAPS_MAP_ID=<MAP_ID>,RECAPTCHA_SITE_KEY=<SITE_KEY>
 ```
+
+`GOOGLE_BUILDABLE` は必須。
+Go の buildpack はリポジトリ直下の main パッケージを探すが、ここでは `cmd/server` にしかないため、指定しないとビルドが失敗する。
 
 `GET /api/config` がフロントへ `MAPS_API_KEY` / `MAPS_MAP_ID` / `RECAPTCHA_SITE_KEY` を返す。
 いずれも公開前提の値だが、Maps の API キーだけはリファラ制限が唯一の防御なので必ずかけること。
 `RECAPTCHA_SITE_KEY` を空にすると bot 検証を飛ばす。ローカル開発専用の逃げ道であり、本番では必ず設定する。
+
+キーの発行はサービスの URL が確定してから行う。
+リファラ制限も reCAPTCHA のドメイン登録も URL が要るため、先にキーを作ると制限のかかっていない期間ができてしまう。
+
+1. 環境変数は `GOOGLE_CLOUD_PROJECT` だけ渡して一度デプロイし、`*.run.app` の URL を確定させる。
+2. その URL を条件に Maps の API キー (リファラ制限 + Maps JavaScript API のみ) と reCAPTCHA のサイトキーを作る。
+3. `gcloud run services update` で残りの環境変数を入れる。
 
 ### フェーズ 5: TSV 廃止
 

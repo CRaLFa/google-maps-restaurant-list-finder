@@ -63,10 +63,14 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
 - 政令指定都市の区、同名の区 (中区・北区・南区・東区・西区・中央区・港区等)、主要都市の繁華街エリアを調査・追加済み。
   詳細な調査結果は [`docs/missing-areas.md`](./docs/missing-areas.md) を参照。
 
-## Web アプリ (Firestore 移行中)
+## Web アプリ
 
-収集済みリストを地図から探せる Web アプリを構築中。
-あわせて正データを TSV から Firestore へ移す。設計と移行手順は [`docs/webapp-design.md`](./docs/webapp-design.md) を参照。
+**公開先: https://google-maps-restaurant-list-finder-823271554794.asia-northeast1.run.app**
+
+収集済みリストを地図から探せる Web アプリ。
+正データは Firestore。設計と移行手順は [`docs/webapp-design.md`](./docs/webapp-design.md) を参照。
+
+GCP プロジェクトは `sandbox-morita-1-441408` (Firestore Native / `asia-northeast1`)。
 
 - [`scripts/store.py`](./scripts/store.py) — Firestore アクセスの集約先。ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。`python3 scripts/store.py` で自己チェックが走る。
 - [`scripts/import_tsv.py`](./scripts/import_tsv.py) — `share-urls.tsv` と `coords.tsv` を結合して Firestore の `lists` へ投入する。冪等。`--dry-run` で Firestore に触らず検証だけ行う。移行後も TSV からの復旧用に残す。
@@ -82,6 +86,8 @@ go test ./... && go run ./cmd/server            # サーバ
 
 サーバは環境変数 `GOOGLE_CLOUD_PROJECT` (必須) / `MAPS_API_KEY` / `MAPS_MAP_ID` / `RECAPTCHA_SITE_KEY` / `PORT` を読む。
 `MAPS_API_KEY` はクライアントに露出するので、GCP コンソール側で HTTP リファラ制限をかけること。
+`MAPS_MAP_ID` を省くと開発用の `DEMO_MAP_ID` にフォールバックする。
+`RECAPTCHA_SITE_KEY` を空にすると bot 検証を飛ばすので、ローカル開発時のみ空にする。
 
 ## ドキュメント
 
