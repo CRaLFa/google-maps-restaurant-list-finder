@@ -6,11 +6,12 @@
 報告を受け付ける = 書き込みが発生するため、TSV の静的配信では成立しない。
 これを機に正データを TSV から Firestore へ移す。
 
-- 対象リポジトリ: このリポジトリ (`gmaps-list-manager`) に統合する。
-- 当初は別リポジトリ (`gmaps-restaurant-list-finder`) を切ったが、TSV 受け渡しでの疎結合が前提だった。
+- 対象リポジトリ: このリポジトリ (`google-maps-restaurant-list-finder`) に統合する。
+- 当初は Web アプリだけ別リポジトリに切ろうとしたが、TSV 受け渡しでの疎結合が前提だった。
   Firestore が正になると収集スクリプトと Web アプリが同じスキーマ・同じ GCP プロジェクト・同じ認証情報を共有するため、分けるとスキーマ定義が二重管理になる。
   デプロイと CI も 2 セット必要になる。
-  よって統合する。
+  よって統合し、リポジトリ名も Web アプリ側に寄せた (旧 `gmaps-list-manager`)。
+  収集・削除スクリプトは移行後ほとんど使わない見込みで、日常的に触るのは Web アプリの方になるため。
 
 ## 決定事項
 
@@ -296,7 +297,7 @@ Firestore では所在地がドキュメント ID の一部なので、記録の
 3. デプロイ。
 
 ```bash
-gcloud run deploy gmaps-list-finder \
+gcloud run deploy google-maps-restaurant-list-finder \
   --source . \
   --region asia-northeast1 \
   --service-account <SA> \

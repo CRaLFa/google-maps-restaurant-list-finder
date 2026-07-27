@@ -1,4 +1,4 @@
-module github.com/CRaLFa/gmaps-list-manager
+module github.com/CRaLFa/google-maps-restaurant-list-finder
 
 go 1.26.3
 

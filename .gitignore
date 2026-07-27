@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# Go 生成物 (`go build ./...` がリポジトリ直下に吐く)
+/server
+
 # Claude Code のローカル設定 (端末 IP 等を含むためコミットしない)
 .claude/settings.local.json
 
