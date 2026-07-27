@@ -39,13 +39,14 @@ Google 公式のエリア別リストはまさに後者にあたる。
 | サーバ | Go / Cloud Run。静的ファイルを `//go:embed` で埋め込んだバイナリ 1 個 |
 | データ | Firestore (Native) |
 | スパム対策 | reCAPTCHA Enterprise + サーバ側のレート制限 |
-| 収集 | Python + adb + uiautomator (実機の Google マップアプリを自動操作) |
+| 収集 | Python + adb + uiautomator (実機の Google マップアプリを自動操作)。座標の取得のみ PC のブラウザ |
 
 ## ドキュメント
 
 - [`docs/development.md`](./docs/development.md) — 開発ガイド。
-  セットアップ、環境変数、収集スクリプトの使い方、Firestore のデータとバックアップ。
-- [`docs/webapp-design.md`](./docs/webapp-design.md) — Web アプリの設計と、正データを TSV から Firestore へ移した移行ガイド。
+  セットアップ、環境変数、収集スクリプトの使い方、**新しいエリアを追加する手順**、
+  Firestore のデータとバックアップ・復旧。
+- [`docs/webapp-design.md`](./docs/webapp-design.md) — Web アプリの設計と、正データを TSV から Firestore へ移した記録。
   データモデル、API、画面設計、採用しなかった案とその理由。
   末尾に今後の課題 (CI/CD、フロントの TypeScript 化、報告の通知) をまとめている。
 - [`docs/adb-workflow.md`](./docs/adb-workflow.md) — adb + uiautomator による収集手順の実証結果とハマりどころ。
