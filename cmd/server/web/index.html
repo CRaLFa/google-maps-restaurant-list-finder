@@ -58,9 +58,21 @@
   dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   #report-msg:not(:empty) { margin-top: 10px; padding: 8px; background: var(--note-bg); border-radius: 4px; }
   .popup b { display: block; margin-bottom: 2px; font-size: 14px; }
-  .popup small { color: var(--muted); }
+  /* 所在地は補足情報だが、--muted だと地名が読み取りづらい。本文と同じ濃さにして小さい字だけで区別する。 */
+  .popup small { color: var(--fg); }
   .popup a { display: block; margin-top: 4px; color: var(--accent); text-decoration: none; }
   .popup a:hover { text-decoration: underline; }
+
+  /* 地図の colorScheme はタイルしか暗くせず、InfoWindow の吹き出しは白のままになる。
+     中の文字だけダークモードの明るい色になって白地に白文字で消えるため、吹き出し側を暗くする。
+     gm-style-iw-* は Google の内部クラスなので、変わって白に戻ることがありうる。
+     そのとき文字が消えないよう .popup 自身にも背景を持たせ、最悪でも白い吹き出しの中の暗い箱として読めるようにしておく。 */
+  @media (prefers-color-scheme: dark) {
+    .popup { background: var(--bg); }
+    .gm-style-iw-c, .gm-style-iw-d { background: var(--bg) !important; }
+    .gm-style-iw-tc::after { background: var(--bg) !important; }
+    .gm-style-iw-c button span { filter: invert(1); }
+  }
 
   @media (max-width: 768px) {
     /* 縦積みでは地図を上にしたいので、DOM 順 (リスト -> 地図) を order で入れ替える。 */
