@@ -12,7 +12,7 @@ cp .env.example .env                            # 環境変数を埋める
 go test ./... && go run ./cmd/server            # サーバ (http://localhost:8080)
 ```
 
-すべてのスクリプトはリポジトリのルートから実行する想定 (例: `python3 scripts/adb/fetch_missing_lists.py`)。
+すべてのスクリプトはリポジトリのルートから実行する想定 (例: `python3 scripts/collect/fetch_missing_lists.py`)。
 
 ## 環境変数
 
@@ -56,30 +56,29 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
 - [`scripts/store.py`](../scripts/store.py) — Firestore アクセスの集約先。
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
-- [`scripts/import_tsv.py`](../scripts/import_tsv.py) — `data/archive/` の TSV を結合して Firestore の `lists` へ投入する。
-  冪等。`--dry-run` で Firestore に触らず検証だけ行う。移行時点への復旧用に残している。
 
-## 収集スクリプト (adb 方式)
+## 収集スクリプト
 
-実機の Google マップアプリを adb + uiautomator で自動操作する。
+収集系は [`scripts/collect/`](../scripts/collect/) にまとめてある。
+新しいエリアを足すときにしか動かさず、日常的に触るのは Web アプリの方だから。
+`scripts/` 直下に残しているのは、どこからでも import される共通モジュール (`store.py` / `locations.py`) だけ。
+
+4 本のうち 3 本は実機の Google マップアプリを adb + uiautomator で自動操作する。
 Web 版の DevTools コンソールで抽出する方式も試したが、一度に数十件しか描画されず全件取得できないため廃止した。
+残る `fetch_coords.py` は端末ではなく PC のブラウザを使う。
 
 読み書きはすべて Firestore に対して行う。実行前に `.env` を用意すること。
 
-端末を繋ぐ 3 本は [`scripts/adb/`](../scripts/adb/) にまとめてある。
-新しいエリアを足すときにしか動かさず、日常的に触るのは Web アプリの方だから。
-`scripts/` 直下に残しているのは、端末を必要としないもの (`store.py` / `locations.py` / `fetch_coords.py` / `import_tsv.py`) だけ。
-
-- [`scripts/adb/fetch_share_urls.py`](../scripts/adb/fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を記録する。
+- [`scripts/collect/fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を記録する。
   既知の名前はスキップするため resume-safe。
-- [`scripts/adb/fetch_missing_lists.py`](../scripts/adb/fetch_missing_lists.py) — 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、
+- [`scripts/collect/fetch_missing_lists.py`](../scripts/collect/fetch_missing_lists.py) — 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、
   エリア検索から未フォローのリストを開いて共有 URL を取得する。
   フォロー (保存) するのはトップリストのみ。
   `SEED=data/seed.tsv` を渡すと、まだ 1 件も無い新規エリアも対象にできる。
-- [`scripts/adb/delete_lists.py`](../scripts/adb/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外を一括削除 (フォロー解除) する。
+- [`scripts/collect/delete_lists.py`](../scripts/collect/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外を一括削除 (フォロー解除) する。
   **端末側の削除は不可逆。**
   Firestore のドキュメントは消さず `followed` を false にするので、共有 URL からの再フォローで復元できる。
-- [`scripts/fetch_coords.py`](../scripts/fetch_coords.py) — **adb 不要。**
+- [`scripts/collect/fetch_coords.py`](../scripts/collect/fetch_coords.py) — **adb 不要。**
   エリアごとの代表 URL (トップリスト優先) を PC のブラウザで開き、リダイレクト後の URL から地図の中心座標を読んで、
   同一エリアの全リストの `lat` / `lng` を更新する。
   座標が入っているエリアはスキップするため resume-safe。
@@ -159,7 +158,15 @@ gcloud firestore databases restore \
 復旧後は `FIRESTORE_DATABASE` を新しい名前に向ける。
 Cloud Run 側は `gcloud run services update --set-env-vars FIRESTORE_DATABASE=...` で切り替わる。
 
-バックアップが失われた場合の最後の手段が `import_tsv.py` による `data/archive/` からの復元。
+バックアップが失われた場合の最後の手段が [`scripts/restore/import_tsv.py`](../scripts/restore/import_tsv.py) による
+`data/archive/` からの復元。
+冪等で、`--dry-run` を付けると Firestore に触らず検証だけ行う。
+
+```bash
+python3 scripts/restore/import_tsv.py --dry-run   # 検証のみ
+python3 scripts/restore/import_tsv.py             # 投入
+```
+
 移行時点の 571 件に戻るだけで、それ以降に増えたエリアは復旧できない。
 
 ### 収録内容 (2026-07-27 時点)

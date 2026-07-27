@@ -22,12 +22,15 @@ lat が既に入っているエリアはスキップするので、中断して�
 認証は `gcloud auth application-default login` で足りる。
 """
 
+import os
 import re
 import subprocess
 import sys
 import time
 
-import store
+# store は親ディレクトリ (scripts/) にある。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import store  # noqa: E402
 
 # URL 中の `@lat,lng,zoomz` 部分
 COORD_RE = re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+),\d+(?:\.\d+)?z")

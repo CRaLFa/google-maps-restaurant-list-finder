@@ -17,7 +17,9 @@
 import os
 import sys
 
-import store
+# store は親ディレクトリ (scripts/) にある。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import store  # noqa: E402
 
 URLS = os.environ.get("URLS", "data/archive/share-urls.tsv")
 COORDS = os.environ.get("COORDS", "data/archive/coords.tsv")

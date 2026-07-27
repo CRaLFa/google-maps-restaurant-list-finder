@@ -46,7 +46,7 @@
 
 つまり **curl では座標を取得できない**。
 実ブラウザで JS を実行させる必要がある。
-`scripts/fetch_coords.py` が agent-browser 経由でこれを行う。
+`scripts/collect/fetch_coords.py` が agent-browser 経由でこれを行う。
 
 嵌まりどころが 2 つある。
 
@@ -302,11 +302,11 @@ Firestore へ入れる前に、TSV 側で以下を済ませておく。
    該当は `東京都` エリアの 3 件のみ。所在地を `東京都` で埋める。
    `scripts/set_locations.py` の `METRO` にエントリを追加して再実行する。
 2. `scripts/normalize_tsv.py` を流して 3 カラムに揃える。
-3. `scripts/fetch_coords.py` を流して `data/coords.tsv` を最新にする (現状 191 エリア分は取得済み)。
+3. `scripts/collect/fetch_coords.py` を流して `data/coords.tsv` を最新にする (現状 191 エリア分は取得済み)。
 
 ### フェーズ 2: 初回インポート
 
-`scripts/import_tsv.py` (新規) で `share-urls.tsv` と `coords.tsv` を結合して Firestore に投入する。
+`scripts/restore/import_tsv.py` (新規) で `share-urls.tsv` と `coords.tsv` を結合して Firestore に投入する。
 
 - 結合キーはエリア名と所在地の組。
 - ドキュメント ID は `{loc}|{name}`。
@@ -475,7 +475,7 @@ steps:
   - name: python:3.12
     script: pip install -r requirements.txt && python scripts/locations.py && python scripts/store.py
   - name: python:3.12
-    script: pip install -r requirements.txt && python scripts/import_tsv.py --dry-run
+    script: pip install -r requirements.txt && python scripts/restore/import_tsv.py --dry-run
   - name: node:22
     args: [node, cmd/server/tree_check.js]
   # デプロイは main への push のときだけ
