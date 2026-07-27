@@ -49,7 +49,10 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
 - [`cmd/server/main.go`](../cmd/server/main.go) — Cloud Run で動かす静的配信 + API サーバ。
   `GET /api/lists` / `POST /api/reports` / `GET /api/config`。
 - [`cmd/server/web/index.html`](../cmd/server/web/index.html) — 単一 HTML のフロント。
-  Maps JavaScript API + 都道府県 ▶ エリア ▶ リストの 3 階層ツリー + 報告フォーム。ビルド不要。
+  Maps JavaScript API + 都道府県 ▶ 市区 ▶ エリア ▶ リストの入れ子ツリー + 報告フォーム。ビルド不要。
+  階層は所在地 (`loc`) が親のフルパスになっていることを利用して組み立てる。
+- [`cmd/server/tree_check.js`](../cmd/server/tree_check.js) — 上記の階層の組み立てを実データで検証する。
+  `node cmd/server/tree_check.js` で実行。`index.html` の `<script>` をそのまま読み込んで動かす。
 - [`scripts/store.py`](../scripts/store.py) — Firestore アクセスの集約先。
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
