@@ -7,7 +7,7 @@ Android のクリップボードを adb から読み書きするためのツー�
 ## セットアップ
 
 ```bash
-DEV=100.64.1.35:42931   # 端末シリアル。ワイヤレスデバッグはポートが毎回変わる
+DEV=192.0.2.1:42931   # 端末シリアル。ワイヤレスデバッグはポートが毎回変わる
 adb.exe -s $DEV push clip clip.jar /data/local/tmp/
 adb.exe -s $DEV shell chmod 755 /data/local/tmp/clip
 ```

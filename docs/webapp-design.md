@@ -374,68 +374,131 @@ gcloud firestore export gs://<BUCKET>/backup/$(date +%Y%m%d)
 移行が済んで動き始めた後の課題。
 優先順位は付けていない。
 
-### CI/CD の整備
+### CI/CD の整備 (Cloud Build)
 
 現状はローカルから `gcloud run deploy --source .` を手で叩いている。
 テストも手で流しているため、通し忘れたまま push できてしまう。
 
-GitHub Actions で以下を回したい。
+**Cloud Build を使う。**
+GitHub Actions ではなく Cloud Build を選ぶ理由は 3 つ。
 
-| 段階 | 内容 |
-| --- | --- |
-| 検査 | `go vet` / `go test` / `python3 scripts/locations.py` / `python3 scripts/store.py` |
-| 検証 | `python3 scripts/import_tsv.py --dry-run` (TSV の件数・エリア数・座標欠損) |
-| デプロイ | `master` への push で Cloud Run へ |
+- **すでに使っている。** `gcloud run deploy --source .` は内部で Cloud Build を回している。
+  API は有効化済みで、Artifact Registry の `cloud-run-source-deploy` も出来上がっている。
+- **Firestore に触るテストが回せる。**
+  これが一番大きい。
+  Cloud Build のサービスアカウントに `roles/datastore.user` を付ければ、CI から実際の Firestore を読める。
+  GitHub Actions から同じことをするには Workload Identity 連携の設定が要る。
+- **デプロイ先が同じプロジェクトにある。** 権限を跨がない。
 
-嵌まりどころが 2 つある。
+GitHub Actions の利点は public リポジトリなら実行が無料な点だが、
+Cloud Build にも無料枠があり、この規模の実行頻度なら問題にならない。
 
-- **認証はサービスアカウントキーではなく Workload Identity 連携にする。**
-  リポジトリに鍵を置かずに済む。
-- **Firestore に触るものは CI で動かせない。**
-  `store.py` の自己チェックと `import_tsv.py --dry-run` は Firestore に接続しないので回せるが、
-  `store.all_lists()` を叩くものは認証が要る。
-  現状 Firestore 非依存のチェックだけで、所在地の解決・ドキュメント ID の組み立て・
-  TSV の整合はカバーできている。
+```yaml
+# cloudbuild.yaml (骨子)
+steps:
+  - name: golang:1.26
+    args: [go, vet, ./...]
+  - name: golang:1.26
+    args: [go, test, ./...]
+  - name: python:3.12
+    script: pip install -r requirements.txt && python scripts/locations.py && python scripts/store.py
+  - name: python:3.12
+    script: pip install -r requirements.txt && python scripts/import_tsv.py --dry-run
+  # デプロイは main への push のときだけ
+```
 
-### フロントの TypeScript 化
+GitHub のリポジトリと繋ぐには Cloud Build のトリガを作る。
+`master` への push で発火させ、PR では検査だけ回してデプロイしない。
 
-`cmd/server/web/index.html` は単一 HTML で、決定事項として「ビルド無し」を選んでいる。
-TypeScript にすると**この前提が崩れる**ので、何を得て何を失うかを見てから決めること。
+Firestore に接続しないチェック (`locations.py` / `store.py` の自己チェック、`import_tsv.py --dry-run`) だけでも、
+所在地の解決・ドキュメント ID の組み立て・TSV の整合はカバーできる。
+サービスアカウントに権限を付けるかどうかは、実データを読むテストを書きたくなってから決めればよい。
 
-- 得るもの: 型による検査と補完。
+### フロントの TypeScript 化と CSS ライブラリの導入
+
+目的は 2 つある。
+
+- **型による検査と補完。**
   現状 `areas` / `prefs` の要素の形はコメントでしか表現されていない。
-  Firestore のドキュメントの形が変わったとき、フロントは実行するまで壊れたことに気付けない。
-- 失うもの: ビルド段階が増える。
-  Cloud Run の buildpack は Go しか見ないので、生成した JS をコミットするか CI でビルドする必要がある。
-  `//go:embed all:web` の対象も生成物側に変わる。
+  Firestore のドキュメントの形が変わっても、フロントは実行するまで壊れたことに気付けない。
+- **CSS ライブラリを入れる。**
+  現在の CSS は手書きで、レイアウトは flexbox とメディアクエリ 1 個。
 
-中間案として **`tsc --noEmit` で型検査だけ行い、配信するのは手書きの JS のまま**という手もある。
-JSDoc で型を書けば、ビルド段階を増やさずに検査だけ得られる。
-まずこちらで足りるか試すのが安い。
+決定事項として「ビルド無し」を選んでいたが、**これを撤回する**ことになる。
 
-本格的に TS 化するなら esbuild 1 コマンドで済む規模。
-webpack や Vite を入れるほどの量ではない。
+#### ビルドが要るかは CSS ライブラリの選択で決まる
+
+TypeScript 化だけなら `tsc --noEmit` で型検査だけ行い、配信は手書き JS のまま、という逃げ道がある。
+だが CSS ライブラリを入れるなら選択肢で分かれる。
+
+| ライブラリ | ビルド | 備考 |
+| --- | --- | --- |
+| Pico.css / Water.css | 不要 | クラスレス。CDN の 1 行で既存の HTML の見た目が変わる |
+| Bulma / Bootstrap | 不要 | CDN の 1 行。クラスを付けて回る必要がある |
+| Tailwind CSS | **必要** | PostCSS を通す。CDN 版 (Play CDN) は本番非推奨 |
+
+**「見た目を整えたいだけ」ならクラスレス CSS で足りる。**
+現在の画面は地図・ツリー・ダイアログの 3 要素しかなく、凝ったコンポーネントを必要としていない。
+Pico.css なら `<link>` 1 行で、`<details>` も `<dialog>` も整った見た目になる。
+
+ビルドを入れると決めたなら、その先は素直に進む。
+
+#### ビルドを入れる場合の構成
+
+**Vite を使う。** TypeScript と CSS の両方を 1 つの設定で扱えるため。
+esbuild 単体だと Tailwind の PostCSS を別に回すことになる。
+
+```
+web/            ← ソース (index.html / main.ts / style.css)
+cmd/server/web/ ← Vite の出力先。//go:embed all:web の対象はここのまま
+```
+
+**帰結として `gcloud run deploy --source .` が使えなくなる。**
+Go の buildpack は Node のビルドを知らないので、`cmd/server/web/` が空のままイメージが作られてしまう。
+対処は 2 つ。
+
+- **Cloud Build の複数ステップにする。** Node でビルド → Go でビルド → デプロイ。
+  上記の CI/CD を Cloud Build で組むなら、そこにステップを足すだけで済む。
+- **Dockerfile のマルチステージにする。** `--source` デプロイのまま使えるが、Dockerfile を持つことになる。
+
+CI/CD を Cloud Build にする判断と噛み合うので、前者を推す。
+生成物をリポジトリにコミットせずに済む点も良い (`cmd/server/web/` を `.gitignore` に入れる)。
 
 ### 報告が追加されたときの通知
 
 現在 `reports` は `status == "new"` のまま溜まるだけで、気付く手段が無い。
 トリアージ用の `scripts/list_reports.py` も未実装。
 
-実装の選択肢は 3 つ。
+**`POST /api/reports` のハンドラ内から直接送る (決定)。**
+Firestore トリガの Cloud Functions (Eventarc) や Pub/Sub 経由も考えられるが、
+報告が日に数件あるかどうかの規模でデプロイ単位と権限設定を増やす価値がない。
 
-| 方式 | 利点 | 欠点 |
-| --- | --- | --- |
-| `POST /api/reports` のハンドラ内から直接送る | 追加のデプロイ単位が増えない | 送信失敗の扱いを決める必要がある |
-| Firestore トリガの Cloud Functions (Eventarc) | 書き込みと通知が疎結合 | デプロイ単位と権限設定が増える |
-| Pub/Sub 経由 | 再送やファンアウトができる | この規模には重い |
+守ること。
 
-報告が日に数件あるかどうかの規模なので、**ハンドラ内から直接送るのが最小**。
-ただし通知の失敗で報告そのものを落としてはいけない。
-Firestore への書き込みが成功した後に通知を試み、失敗してもレスポンスは 200 のままログに残すこと。
+- **通知の失敗で報告そのものを落とさない。**
+  Firestore への書き込みが成功した後に通知を試み、失敗してもレスポンスは 200 のままログに残す。
+- **`contact` と `comment` を通知本文に載せない。**
+  `contact` は個人情報で、ログにも出さない方針にしてある。
+  通知にはドキュメント ID・`area`・`pref` だけを載せ、中身は Firestore を直接見に行く。
+- **通知の送信でレスポンスを待たせない。**
+  goroutine に逃がし、`context.Background()` を使う (リクエストの context は応答後に切れる)。
 
-送信先はメールのほか Slack / Discord の Webhook も候補になる。
-Webhook の方が実装は短い (URL に POST するだけ) が、通知先を環境変数で持つことになる。
+#### 送信手段: メールにするなら外部サービスを使う
 
-**`contact` と `comment` を通知本文に載せてはいけない。**
-`contact` は個人情報で、ログにも出さない方針にしてある。
-通知にはドキュメント ID・`area`・`pref`・`status` だけを載せ、中身は Firestore を直接見に行く。
+蓄積されたものを後から確認できる点でメールが向いているが、
+**Google Cloud にメール送信サービスは無い。**
+これが「面倒」の正体で、回避策も限られる。
+
+| 手段 | 評価 |
+| --- | --- |
+| 外部のメール API (Resend / SendGrid / Mailgun) | **これが素直。** HTTPS で POST 1 回。無料枠で足りる |
+| Gmail API + サービスアカウント | ドメイン全体の委任が要る。Workspace 前提で個人プロジェクトには重い |
+| SMTP を直接叩く | Cloud Run は 25 番ポートを塞いでいる。587 は通るが認証情報の管理が増える |
+
+外部サービスを 1 つ挟むことになるが、実装量は Webhook とほぼ同じ (JSON を POST するだけ)。
+API キーは Secret Manager に置き、Cloud Run から参照する。
+環境変数に直書きしてもよいが、他のキーと違いこれは**公開前提の値ではない**ので分けて扱う。
+
+Slack / Discord の Webhook なら外部サービスの登録すら要らず、URL に POST するだけで済む。
+履歴も残るので「蓄積されたものを確認する」目的は満たせる。
+メールの受信箱に集めたいかどうかの好みで決めればよい。

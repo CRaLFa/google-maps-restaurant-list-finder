@@ -8,7 +8,7 @@ adb + uiautomator で Google マップの「保存済み」→「保存したリ
 - Windows 上の `adb.exe` を WSL から呼び出す。
 - 端末が複数繋がっているため `-s <serial>` で必ず対象を指定する。
   - `adb.exe devices -l` で確認。
-  - 例: `emulator-5554` (エミュレーター) / `100.64.1.35:43347` (実機ワイヤレスデバッグ)。
+  - 例: `emulator-5554` (エミュレーター) / `192.0.2.1:43347` (実機ワイヤレスデバッグ)。
   - ワイヤレスデバッグはポートが毎回変わる。都度確認する。
 - 対象アプリ: `com.google.android.apps.maps`。
 - 事前に端末側で Google マップの「保存済み」タブ →「保存したリスト」を開いた状態にしておく。
@@ -47,7 +47,7 @@ adb.exe -s $DEV shell "cat /sdcard/window_dump.xml" > dump.xml
 新規タイトルが出なくなる (stable が一定回数続く) まで dump とスワイプを繰り返す。
 
 ```bash
-DEV=100.64.1.35:43347   # 実機。エミュレーターなら emulator-5554
+DEV=192.0.2.1:43347   # 実機。エミュレーターなら emulator-5554
 ACC=acc.txt             # タイトル累積ファイル
 > "$ACC"
 stable=0
@@ -148,7 +148,7 @@ Android 10 以降はフォアグラウンドアプリ以外のクリップボー
 (v0.0.3。更新は adb-clip の releases から差し替える)。
 
 ```bash
-DEV=100.64.1.35:42931
+DEV=192.0.2.1:42931
 adb.exe -s $DEV push tools/adb-clip/clip tools/adb-clip/clip.jar /data/local/tmp/
 adb.exe -s $DEV shell chmod 755 /data/local/tmp/clip
 ```
@@ -172,7 +172,7 @@ adb.exe -s $DEV shell "/data/local/tmp/clip 'text'"
 5. 戻るキー (`keyevent 4`) で共有シートを閉じ、次のリストへ進む。
 
 ```bash
-DEV=100.64.1.35:42931
+DEV=192.0.2.1:42931
 # コピーをタップした後のクリップボード読み出し部分 (手順 4)
 adb.exe -s $DEV shell /data/local/tmp/clip | grep -o 'https://maps\.app\.goo\.gl/[A-Za-z0-9]*' | head -1
 ```
@@ -210,7 +210,7 @@ adb-clip 方式で実装済み。リポジトリルートから実行する。
 ```bash
 cd <リポジトリルート>
 # 事前に adb-clip を push しておくこと (tools/adb-clip/README.md 参照)
-DEV=100.64.1.35:42931 python3 scripts/fetch_share_urls.py       # 全件
+DEV=192.0.2.1:42931 python3 scripts/fetch_share_urls.py       # 全件
 DEV=... MAX=5 OUT=data/test.tsv python3 scripts/fetch_share_urls.py   # 動作確認 (5 件だけ別ファイルへ)
 ```
 
@@ -332,7 +332,7 @@ UI dump から URL を抜いていた。PII 混入の dump が必要で手順も
 
 ```bash
 cd <リポジトリルート>
-DEV=100.64.1.35:37011 python3 scripts/fetch_missing_lists.py        # 全件
+DEV=192.0.2.1:37011 python3 scripts/fetch_missing_lists.py        # 全件
 DEV=... OUT=data/test-missing.tsv MAX=2 python3 scripts/fetch_missing_lists.py  # 動作確認
 ```
 

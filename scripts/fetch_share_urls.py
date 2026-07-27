@@ -24,7 +24,8 @@ import time
 import locations
 import store
 
-DEV = os.environ.get("DEV", "100.64.1.35:42931")
+# 端末シリアル。ワイヤレスデバッグはポートが毎回変わるので .env か実行時に指定する。
+DEV = os.environ.get("DEV", "")
 MAX = int(os.environ.get("MAX", "0"))  # 0 なら全件
 CLIP = "/data/local/tmp/clip"  # 端末上の adb-clip
 
@@ -38,6 +39,9 @@ def log(msg):
 
 
 def adb(*args, timeout=90):
+    if not DEV:
+        sys.exit("環境変数 DEV に端末シリアルを設定すること"
+                 " (例: DEV=192.0.2.1:5555)。`adb devices` で確認できる。")
     try:
         r = subprocess.run(
             ["adb.exe", "-s", DEV, *args], capture_output=True, text=True, timeout=timeout
