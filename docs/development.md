@@ -129,7 +129,8 @@ Web 版の DevTools コンソールで抽出する方式も試したが、一度
 
 ### バックアップと復旧
 
-Firestore のスケジュールバックアップを日次で取る。**未設定なら最初に一度だけ実行する。**
+Firestore のスケジュールバックアップを日次で取っている (保持 7 日)。
+設定済みなので、作り直すとき以外は実行しなくてよい。
 
 ```bash
 gcloud firestore backups schedules create --database=restaurant-lists \
