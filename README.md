@@ -18,6 +18,7 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
 - [`scripts/delete_lists.py`](./scripts/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外 (トレンド / 地元で人気) を一括削除 (フォロー解除) する。**不可逆操作**。
 - [`scripts/set_locations.py`](./scripts/set_locations.py) — `data/share-urls.tsv` 3 列目 (所在地) を都道府県から始まる住所表記でセットする。新しいエリアを追加したら `CITIES` / `WARDS` / `DISTRICTS` / `METRO` を更新して実行する。冪等。
 - [`scripts/normalize_tsv.py`](./scripts/normalize_tsv.py) — `data/share-urls.tsv` を全行 3 カラムに揃え、codepoint 順に並べ直す。取得スクリプトの実行後に流す想定。
+- [`scripts/fetch_coords.py`](./scripts/fetch_coords.py) — **adb 不要。** エリアごとの代表 URL (トップリスト優先) を PC のブラウザで開き、リダイレクト後の URL から地図の中心座標を読んで [`data/coords.tsv`](./data/coords.tsv) に追記する。既知のエリアはスキップするため resume-safe。[agent-browser](https://www.npmjs.com/package/agent-browser) が必要。
 - [`tools/adb-clip/`](./tools/adb-clip/) — クリップボード読み書き用に vendor した [polygraphene/adb-clip](https://github.com/polygraphene/adb-clip)。共有 URL の取得に使う。
 
 クリップボードは Android 10 以降フォアグラウンド以外から読めないため、adb-clip を `app_process` 経由で使って回避している。詳細は [`docs/adb-workflow.md`](./docs/adb-workflow.md) 参照。
@@ -34,6 +35,9 @@ Web 版は一度に数十件しか描画しない仕様でリスト数が多い�
   (`北海道` / `愛知県名古屋市` / `東京都港区` のように粒度はエリア種別で変わる) を入れる。
   区別が不要なエリアは 3 列目を空にする (行末はタブで終わる)。
   一意キーは (1 列目, 3 列目) の組。
+- [`data/coords.tsv`](./data/coords.tsv) — エリアごとの中心座標。`エリア名 <TAB> 所在地 <TAB> 緯度 <TAB> 経度` の TSV。
+  キーは `share-urls.tsv` と同じ (エリア名, 所在地) の組で、リスト種別の接尾辞は付かない。
+  同一エリアでも 3 リストの中心は数 km ずれるため、トップリストの中心を代表値としている。
 - [`data/seed.tsv`](./data/seed.tsv) — `fetch_missing_lists.py` の `SEED` に渡す新規エリア候補の一覧。
   試した検索語・所在地の記録を兼ねるため、取得済みの行も削除せず残している。
 
