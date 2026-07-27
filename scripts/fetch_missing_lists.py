@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""share-urls.tsv に欠けているエリア別リストの共有 URL を取得する。
+"""Firestore に欠けているエリア別リストの共有 URL を取得する。
 
 fetch_share_urls.py は端末にフォロー済みのリストしか辿れないため、
 未フォローのリスト (「〇〇: トレンド」等) は取得できない。
@@ -10,7 +10,9 @@ fetch_share_urls.py は端末にフォロー済みのリストしか辿れない
 トレンド / 地元で人気 は共有 URL を取るだけでフォローしない
 (リスト詳細画面の共有ボタンは未フォローでも押せる)。
 
-結果は share-urls.tsv に逐次追記するので、中断しても再開できる。
+結果は Firestore の lists へ 1 件ずつ書き込むので、中断しても再開できる。
+所在地は seed の 2 列目か locations.py のテーブルから決める。
+どちらでも決まらないエリアは端末を触る前に対象から外す。
 """
 import os
 import re
@@ -18,6 +20,8 @@ import sys
 import time
 import urllib.parse
 
+import locations
+import store
 from fetch_share_urls import (
     SENTINEL,
     adb,
@@ -34,7 +38,6 @@ from fetch_share_urls import (
     tap,
 )
 
-OUT = os.environ.get("OUT", "data/share-urls.tsv")
 MAX = int(os.environ.get("MAX", "0"))  # 0 なら全件
 SEED = os.environ.get("SEED", "")  # 新規に追加したいエリアの一覧ファイル
 
@@ -45,36 +48,28 @@ COPY_FALLBACK = (114, 2153)  # 共有シートの「クリップボードにコ�
 NO_CAROUSEL = "エリアページにリストのカルーセルが無い"
 
 # 同名のエリアが複数あって geo: が別のエリアを開いてしまう場合の検索語の上書き。
-# キーは (エリア名, 市名)。市名は TSV 3 列目と同じもの。
+# キーは (エリア名, 所在地)。
 AREA_QUERY = {
-    # 「伏見」だけだと京都の伏見区が開く。キーは (エリア名, TSV 3 列目の所在地)。
+    # 「伏見」だけだと京都の伏見区が開く。
     ("伏見", "愛知県名古屋市中区"): "伏見 名古屋",
 }
 
 
-def read_tsv(path):
-    """TSV を {(リスト名, 市名): URL} で読む。
+def read_lists():
+    """Firestore の lists を {(リスト名, 所在地): URL} で読む。
 
-    3 列目の市名は「中区」「北区」のように全国に同名の区があるリストを
-    区別するためだけの列。1 列目は Google 上の実際のリスト名のままにする。
-    区別が不要なリストは 3 列目を空にする (行末がタブで終わる)。
+    所在地は「中区」「北区」のように全国に同名の区があるリストを区別する値。
+    リスト名は Google 上の実際の名前のままにする。
     """
-    done = {}
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                cols = line.rstrip("\n").split("\t")
-                if len(cols) >= 2:
-                    done[(cols[0], cols[2] if len(cols) > 2 else "")] = cols[1]
-    return done
+    return {(r["name"], r["loc"]): r.get("url") for r in store.all_lists()}
 
 
 def read_seed(path):
-    """シードファイルから (エリア名, 市名) を読む。
+    """シードファイルから (エリア名, 所在地) を読む。
 
-    1 行 1 エリア。`エリア名<TAB>市名<TAB>検索語` のタブ区切りで、2 列目以降は省略可。
-    市名は TSV 3 列目に入る区別用の値。
-    検索語を省くと「市名 + エリア名」(市名が無ければエリア名) で検索する。
+    1 行 1 エリア。`エリア名<TAB>所在地<TAB>検索語` のタブ区切りで、2 列目以降は省略可。
+    所在地を省いた場合は locations.py のテーブルから引く。
+    検索語を省くと「所在地 + エリア名」(所在地が無ければエリア名) で検索する。
     """
     out = []
     if not path:
@@ -271,10 +266,24 @@ def grab(name, city, known_urls):
 
 
 def main():
-    done = read_tsv(OUT)
-    known_urls = set(done.values())
-    targets = [n for n in missing_lists(done, read_seed(SEED)) if n not in done]
-    log(f"開始: 取得済み {len(done)} 件 / 対象 {len(targets)} 件")
+    done = read_lists()
+    known_urls = {u for u in done.values() if u}
+
+    # 所在地が決まらない対象は端末を触る前に外す。取れても Firestore に書けないため。
+    targets, unresolved = [], set()
+    for name, city in missing_lists(done, read_seed(SEED)):
+        if (name, city) in done:
+            continue
+        area = name.rsplit(": ", 1)[0]
+        if city or locations.resolve(area):
+            targets.append((name, city))
+        else:
+            unresolved.add(area)
+    log(f"開始: 取得済み {len(done)} 件 / 対象 {len(targets)} 件"
+        f" / 所在地未定義で除外 {len(unresolved)} エリア")
+    if unresolved:
+        log("  除外したエリア (locations.py のテーブルか seed の 2 列目を埋めること): "
+            + ", ".join(sorted(unresolved)))
 
     clip_write(SENTINEL)
     if clip_read() != SENTINEL:
@@ -297,9 +306,9 @@ def main():
         if reason == NO_CAROUSEL:
             empty_areas.add((area, city))
         if url:
-            # 市名が空でも 3 カラム目 (末尾のタブ) は必ず書く。
-            with open(OUT, "a", encoding="utf-8") as f:
-                f.write(f"{name}\t{url}\t{city}\n")
+            # seed で所在地を省いた場合はテーブルから引く。ここまで来たら必ず決まる。
+            loc = city or locations.resolve(area)
+            store.upsert([(store.doc_id(loc, name), store.build(name, url, loc))])
             known_urls.add(url)
             got += 1
             log(f"[{i}/{len(targets)}] {label}\t{url}")
