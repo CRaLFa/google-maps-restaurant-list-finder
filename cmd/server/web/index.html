@@ -183,10 +183,20 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
+// 検索語がエリアに当たるか。
+// 所在地は「都道府県 + 市区」の連結なので、都道府県の部分だけ先頭一致にする。
+// 部分一致のままだと「京都」が「東京都」に当たり、京都府の 14 件が東京都の 60 件に埋もれる。
+// 市区の部分は部分一致のままにして、「名古屋」で名古屋市の区を引けるようにする。
+function matches(a, q) {
+  return a.area.includes(q)
+    || a.pref.startsWith(q)
+    || a.loc.slice(a.pref.length).includes(q);
+}
+
 // 検索語にヒットするエリアだけを残してツリーとピンを描き直す。
 function render() {
   const q = document.getElementById("q").value.trim();
-  const hit = a => !q || a.area.includes(q) || a.loc.includes(q);
+  const hit = a => !q || matches(a, q);
 
   treeEl.textContent = "";
   let shown = 0;
