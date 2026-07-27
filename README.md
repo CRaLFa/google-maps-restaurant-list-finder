@@ -117,6 +117,7 @@ Python 側は `scripts/store.py` の位置から親を辿るためカレント�
   欠落しているエリア別リストの追加取得 (geo: インテント・曖昧なエリア名の扱い) の実証結果・ハマりどころ。
 - [`docs/webapp-design.md`](./docs/webapp-design.md) — 収集済みリストを地図から探せる Web アプリの設計と、正データを TSV から Firestore へ移す移行ガイド。
   構成 (Cloud Run + Firestore)、データモデル、画面設計、報告フォーム、共有 URL から座標を取得する際のハマりどころ。
+  末尾に今後やりたいこと (CI/CD の整備、フロントの TypeScript 化、報告の通知) の検討をまとめている。
 
 ## 前提
 

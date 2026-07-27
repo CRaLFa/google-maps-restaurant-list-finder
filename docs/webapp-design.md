@@ -368,3 +368,74 @@ gcloud firestore export gs://<BUCKET>/backup/$(date +%Y%m%d)
   公開する場合は reCAPTCHA のスコア閾値を実データを見ながら調整する必要がある。
 - 191 個のピンの重なりが実使用で許容できるか。
   許容できなければ `@googlemaps/markerclusterer` を追加する。
+
+## 今後やりたいこと
+
+移行が済んで動き始めた後の課題。
+優先順位は付けていない。
+
+### CI/CD の整備
+
+現状はローカルから `gcloud run deploy --source .` を手で叩いている。
+テストも手で流しているため、通し忘れたまま push できてしまう。
+
+GitHub Actions で以下を回したい。
+
+| 段階 | 内容 |
+| --- | --- |
+| 検査 | `go vet` / `go test` / `python3 scripts/locations.py` / `python3 scripts/store.py` |
+| 検証 | `python3 scripts/import_tsv.py --dry-run` (TSV の件数・エリア数・座標欠損) |
+| デプロイ | `master` への push で Cloud Run へ |
+
+嵌まりどころが 2 つある。
+
+- **認証はサービスアカウントキーではなく Workload Identity 連携にする。**
+  リポジトリに鍵を置かずに済む。
+- **Firestore に触るものは CI で動かせない。**
+  `store.py` の自己チェックと `import_tsv.py --dry-run` は Firestore に接続しないので回せるが、
+  `store.all_lists()` を叩くものは認証が要る。
+  現状 Firestore 非依存のチェックだけで、所在地の解決・ドキュメント ID の組み立て・
+  TSV の整合はカバーできている。
+
+### フロントの TypeScript 化
+
+`cmd/server/web/index.html` は単一 HTML で、決定事項として「ビルド無し」を選んでいる。
+TypeScript にすると**この前提が崩れる**ので、何を得て何を失うかを見てから決めること。
+
+- 得るもの: 型による検査と補完。
+  現状 `areas` / `prefs` の要素の形はコメントでしか表現されていない。
+  Firestore のドキュメントの形が変わったとき、フロントは実行するまで壊れたことに気付けない。
+- 失うもの: ビルド段階が増える。
+  Cloud Run の buildpack は Go しか見ないので、生成した JS をコミットするか CI でビルドする必要がある。
+  `//go:embed all:web` の対象も生成物側に変わる。
+
+中間案として **`tsc --noEmit` で型検査だけ行い、配信するのは手書きの JS のまま**という手もある。
+JSDoc で型を書けば、ビルド段階を増やさずに検査だけ得られる。
+まずこちらで足りるか試すのが安い。
+
+本格的に TS 化するなら esbuild 1 コマンドで済む規模。
+webpack や Vite を入れるほどの量ではない。
+
+### 報告が追加されたときの通知
+
+現在 `reports` は `status == "new"` のまま溜まるだけで、気付く手段が無い。
+トリアージ用の `scripts/list_reports.py` も未実装。
+
+実装の選択肢は 3 つ。
+
+| 方式 | 利点 | 欠点 |
+| --- | --- | --- |
+| `POST /api/reports` のハンドラ内から直接送る | 追加のデプロイ単位が増えない | 送信失敗の扱いを決める必要がある |
+| Firestore トリガの Cloud Functions (Eventarc) | 書き込みと通知が疎結合 | デプロイ単位と権限設定が増える |
+| Pub/Sub 経由 | 再送やファンアウトができる | この規模には重い |
+
+報告が日に数件あるかどうかの規模なので、**ハンドラ内から直接送るのが最小**。
+ただし通知の失敗で報告そのものを落としてはいけない。
+Firestore への書き込みが成功した後に通知を試み、失敗してもレスポンスは 200 のままログに残すこと。
+
+送信先はメールのほか Slack / Discord の Webhook も候補になる。
+Webhook の方が実装は短い (URL に POST するだけ) が、通知先を環境変数で持つことになる。
+
+**`contact` と `comment` を通知本文に載せてはいけない。**
+`contact` は個人情報で、ログにも出さない方針にしてある。
+通知にはドキュメント ID・`area`・`pref`・`status` だけを載せ、中身は Firestore を直接見に行く。
