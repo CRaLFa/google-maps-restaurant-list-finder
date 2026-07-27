@@ -211,10 +211,10 @@ adb-clip 方式で実装済み。リポジトリルートから実行する。
 cd <リポジトリルート>
 # 事前に adb-clip を push しておくこと (tools/adb-clip/README.md 参照)
 DEV=192.0.2.1:42931 python3 scripts/collect/fetch_share_urls.py       # 全件
-DEV=... MAX=5 OUT=data/test.tsv python3 scripts/collect/fetch_share_urls.py   # 動作確認 (5 件だけ別ファイルへ)
+DEV=... MAX=5 python3 scripts/collect/fetch_share_urls.py            # 動作確認 (5 件だけ)
 ```
 
-- 結果は `share-urls.tsv` (リスト名 \t URL) に逐次追記。中断しても `done` を読んで再開する。
+- 結果は Firestore の `lists` へ逐次 upsert。既知の名前はスキップするので中断しても再開できる。
 - コピー前に番兵をクリップボードへ書き、更新されなければ失敗として 2 回までリトライ。
 - **「クリップボードにコピー」タップで共有シートは自動で閉じる。**
   余計な戻るキーを押すとリスト画面まで畳んでしまい毎回 top から再構築する羽目になるので、
@@ -333,10 +333,11 @@ UI dump から URL を抜いていた。PII 混入の dump が必要で手順も
 ```bash
 cd <リポジトリルート>
 DEV=192.0.2.1:37011 python3 scripts/collect/fetch_missing_lists.py        # 全件
-DEV=... OUT=data/test-missing.tsv MAX=2 python3 scripts/collect/fetch_missing_lists.py  # 動作確認
+DEV=... MAX=2 python3 scripts/collect/fetch_missing_lists.py            # 動作確認 (2 件だけ)
 ```
 
-欠落分は `share-urls.tsv` から自動で算出するので、対象を手で渡す必要はない。
+欠落分は Firestore から自動で算出するので、対象を手で渡す必要はない。
+まだ 1 件も無い新規エリアだけは `SEED=data/seed.tsv` で渡す (手順は [`development.md`](./development.md) の「新しいエリアを追加する」)。
 取得済みの名前はスキップするため resume-safe。
 1 件あたり 60〜70 秒。
 
