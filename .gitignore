@@ -1,6 +1,7 @@
 # Python 生成物
 __pycache__/
 *.pyc
+.venv/
 
 # Claude Code のローカル設定 (端末 IP 等を含むためコミットしない)
 .claude/settings.local.json

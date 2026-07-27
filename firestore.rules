@@ -1,0 +1,12 @@
+// クライアントは Firestore に直接触らず、必ず Cloud Run の API を通す。
+// reports は連絡先という個人情報を含むため、読み書きは全拒否のまま維持すること。
+// サーバ側のサービスアカウントはこのルールの対象外なので、API 経由の読み書きは通る。
+//
+// デプロイ: firebase deploy --only firestore:rules
+// (Firebase CLI を入れたくない場合は GCP コンソールの Firestore > ルール から貼る)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+  }
+}
