@@ -5,26 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>レストランリスト検索</title>
 <style>
-  :root { --border: #d6d6d6; --muted: #666; --accent: #1a73e8; }
+  /* color-scheme を宣言しておくとフォーム部品とスクロールバーが OS の設定に追随する。 */
+  :root {
+    color-scheme: light dark;
+    --bg: #fff; --fg: #222; --border: #d6d6d6; --muted: #666; --accent: #1a73e8;
+    --map-bg: #e8e8e8; --note-bg: #f3f3f3; --danger: #c00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #202124; --fg: #e8eaed; --border: #3c4043; --muted: #9aa0a6; --accent: #8ab4f8;
+      --map-bg: #303134; --note-bg: #2a2b2e; --danger: #f28b82;
+    }
+  }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
     display: flex; font-family: system-ui, sans-serif; font-size: 14px;
+    background: var(--bg); color: var(--fg);
   }
-  #map { flex: 8; min-width: 0; background: #e8e8e8; }
-  #map .error { padding: 16px; color: #c00; }
+  #map { flex: 8; min-width: 0; background: var(--map-bg); }
+  #map .error { padding: 16px; color: var(--danger); }
   #side {
     flex: 2; min-width: 260px; display: flex; flex-direction: column;
-    border-left: 1px solid var(--border); background: #fff;
+    border-right: 1px solid var(--border); background: var(--bg);
   }
   #search { padding: 8px; border-bottom: 1px solid var(--border); }
   #search input { width: 100%; padding: 8px; font-size: 15px; }
   #tree { flex: 1; overflow-y: auto; padding: 4px 8px; }
-  #tree summary { cursor: pointer; padding: 4px 0; }
-  #tree .pref > summary { font-weight: bold; }
-  #tree .area { margin-left: 14px; }
-  #tree .area > summary { color: #222; }
-  #tree .area.hit > summary { color: var(--accent); }
+  #tree summary { cursor: pointer; padding: 4px 0; color: var(--fg); }
+  #tree > .node > summary { font-weight: bold; }
+  #tree .node .node { margin-left: 14px; }
+  #tree .node.hit > summary { color: var(--accent); }
   #tree ul { list-style: none; margin: 2px 0 6px 28px; padding: 0; }
   #tree li a { color: var(--accent); text-decoration: none; }
   #tree li a:hover { text-decoration: underline; }
@@ -33,36 +44,52 @@
   footer { padding: 8px; border-top: 1px solid var(--border); }
   button { padding: 8px 12px; font-size: 14px; cursor: pointer; }
   #report-btn { width: 100%; }
-  dialog { border: 1px solid var(--border); border-radius: 6px; padding: 16px; max-width: 420px; width: 90%; }
+  dialog {
+    border: 1px solid var(--border); border-radius: 6px; padding: 16px; max-width: 420px; width: 90%;
+    background: var(--bg); color: var(--fg);
+  }
   dialog h2 { margin: 0 0 12px; font-size: 16px; }
   dialog label { display: block; margin: 10px 0 3px; }
   dialog input, dialog select, dialog textarea {
     width: 100%; padding: 6px; font-size: 14px; font-family: inherit;
   }
-  dialog .req::after { content: " *"; color: #c00; }
+  dialog .req::after { content: " *"; color: var(--danger); }
   dialog .note { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
   dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-  #report-msg:not(:empty) { margin-top: 10px; padding: 8px; background: #f3f3f3; border-radius: 4px; }
+  #report-msg:not(:empty) { margin-top: 10px; padding: 8px; background: var(--note-bg); border-radius: 4px; }
   .popup b { display: block; margin-bottom: 2px; font-size: 14px; }
-  .popup small { color: var(--muted); }
+  /* 所在地は補足情報だが、--muted だと地名が読み取りづらい。本文と同じ濃さにして小さい字だけで区別する。 */
+  .popup small { color: var(--fg); }
   .popup a { display: block; margin-top: 4px; color: var(--accent); text-decoration: none; }
   .popup a:hover { text-decoration: underline; }
 
+  /* 地図の colorScheme はタイルしか暗くせず、InfoWindow の吹き出しは白のままになる。
+     中の文字だけダークモードの明るい色になって白地に白文字で消えるため、吹き出し側を暗くする。
+     gm-style-iw-* は Google の内部クラスなので、変わって白に戻ることがありうる。
+     そのとき文字が消えないよう .popup 自身にも背景を持たせ、最悪でも白い吹き出しの中の暗い箱として読めるようにしておく。 */
+  @media (prefers-color-scheme: dark) {
+    .popup { background: var(--bg); }
+    .gm-style-iw-c, .gm-style-iw-d { background: var(--bg) !important; }
+    .gm-style-iw-tc::after { background: var(--bg) !important; }
+    .gm-style-iw-c button span { filter: invert(1); }
+  }
+
   @media (max-width: 768px) {
+    /* 縦積みでは地図を上にしたいので、DOM 順 (リスト -> 地図) を order で入れ替える。 */
     body { flex-direction: column; }
-    #map { flex: none; height: 50vh; }
-    #side { flex: 1; min-width: 0; border-left: none; border-top: 1px solid var(--border); }
+    #map { flex: none; height: 50vh; order: -1; }
+    #side { flex: 1; min-width: 0; border-right: none; border-top: 1px solid var(--border); }
     dialog { max-width: none; width: 100%; height: 100%; max-height: none; border: none; border-radius: 0; }
   }
 </style>
 </head>
 <body>
-<div id="map"></div>
 <div id="side">
   <div id="search"><input id="q" type="search" placeholder="🔍 地名で検索" autocomplete="off"></div>
   <div id="tree"></div>
   <footer><button id="report-btn">漏れているリストを報告</button></footer>
 </div>
+<div id="map"></div>
 
 <dialog id="report">
   <form id="report-form" method="dialog">
@@ -92,7 +119,7 @@ const PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山�
 const treeEl = document.getElementById("tree");
 let map, infoWindow;
 let areas = [];   // { key, area, loc, pref, lat, lng, lists[], marker, el }
-let prefs = [];   // { pref, lat, areas[] }
+let roots = [];   // ツリーの根 (都道府県)。ノードは { path, label, lat, area, children[] }
 let siteKey = "";
 
 // リストの取得と Maps API のロードは互いに独立なので並行して走らせる。
@@ -129,6 +156,9 @@ async function start(cfg) {
     center: { lat: 37.5, lng: 137.5 },
     zoom: 5,
     mapId: cfg.mapId,
+    // ブラウザのダークモード設定に地図を合わせる。
+    // 初期化時にしか効かないので、途中で OS の設定が変わっても地図は切り替わらない。
+    colorScheme: google.maps.ColorScheme.FOLLOW_SYSTEM,
     mapTypeControl: false,
     streetViewControl: false,
     fullscreenControl: false,
@@ -159,18 +189,46 @@ function buildAreas(rows) {
   }
   areas = [...byArea.values()];
   for (const a of areas) a.lists.sort((x, y) => x.kind.localeCompare(y.kind, "ja"));
+  buildTree();
+}
 
-  // 都道府県は代表緯度 (所属エリアの最大緯度) の降順、つまり北から南に並べる。
-  // 座標があるので JIS 都道府県コードの配列を持たずに済む。
-  const byPref = new Map();
+// 所在地はそのエリアの「親のフルパス」になっている。
+// 例: 池袋 の所在地は 東京都豊島区、豊島区 の所在地は 東京都。
+// つまり 所在地 + エリア名 をフルパスとして扱えば、親子関係がそのまま木になる。
+function buildTree() {
+  const nodes = new Map();   // フルパス -> ノード
+  const node = path => {
+    if (!nodes.has(path)) nodes.set(path, { path, label: path, lat: -Infinity, area: null, children: [] });
+    return nodes.get(path);
+  };
   for (const a of areas) {
-    if (!byPref.has(a.pref)) byPref.set(a.pref, { pref: a.pref, lat: -Infinity, areas: [] });
-    const p = byPref.get(a.pref);
-    p.areas.push(a);
-    p.lat = Math.max(p.lat, a.lat);
+    node(a.pref);                     // 都道府県は木の根
+    node(a.loc);                      // 収集対象になっていない市区を中間ノードとして補う
+    node(a.loc + a.area).area = a;
   }
-  prefs = [...byPref.values()].sort((x, y) => y.lat - x.lat);
-  for (const p of prefs) p.areas.sort((x, y) => y.lat - x.lat);
+
+  // 親は「自分より短い既知のパスのうち最長のもの」。見つからなければ根 (都道府県)。
+  // ラベルは親のパスを差し引いた残り。東京都台東区 なら 台東区 になる。
+  const paths = [...nodes.keys()].sort((x, y) => y.length - x.length);
+  roots = [];
+  for (const n of nodes.values()) {
+    const parent = paths.find(p => p.length < n.path.length && n.path.startsWith(p));
+    if (!parent) { roots.push(n); continue; }
+    n.label = n.path.slice(parent.length);
+    nodes.get(parent).children.push(n);
+  }
+
+  // 代表緯度 (自身と子孫の最大緯度) の降順、つまり北から南に並べる。
+  // 座標があるので JIS 都道府県コードの配列を持たずに済む。
+  for (const n of roots) resolveLat(n);
+  roots.sort((x, y) => y.lat - x.lat);
+}
+
+function resolveLat(n) {
+  if (n.area) n.lat = n.area.lat;
+  for (const c of n.children) n.lat = Math.max(n.lat, resolveLat(c));
+  n.children.sort((x, y) => y.lat - x.lat);
+  return n.lat;
 }
 
 function popupHTML(a) {
@@ -200,31 +258,41 @@ function render() {
 
   treeEl.textContent = "";
   let shown = 0;
-  for (const p of prefs) {
-    const list = p.areas.filter(hit);
-    if (!list.length) continue;
-    shown += list.length;
-    const pd = document.createElement("details");
-    pd.className = "pref";
-    pd.open = !!q;
-    pd.innerHTML = `<summary>${esc(p.pref)} <span class="count">(${list.length})</span></summary>`;
-    for (const a of list) {
-      const ad = document.createElement("details");
-      ad.className = "area";
-      ad.innerHTML = `<summary>${esc(a.area)}</summary><ul>` +
-        a.lists.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.kind)}</a></li>`).join("") +
-        "</ul>";
-      ad.querySelector("summary").addEventListener("click", () => focusArea(a));
-      a.el = ad;
-      pd.append(ad);
-    }
-    treeEl.append(pd);
-  }
+  for (const n of roots) shown += renderNode(n, treeEl, hit, !!q);
   if (!shown) treeEl.innerHTML = '<p class="empty">該当するエリアがありません。</p>';
 
   for (const a of areas) {
     if (a.marker) a.marker.map = hit(a) ? map : null;
   }
+}
+
+// ノードとその子孫を描き、表示したエリア数を返す。
+// 0 なら自身も子孫もヒットしていないので、そのノードは追加しない。
+function renderNode(n, parentEl, hit, open) {
+  const d = document.createElement("details");
+  d.className = "node";
+  d.open = open;
+  const sum = document.createElement("summary");
+  d.append(sum);
+
+  let count = 0;
+  if (n.area && hit(n.area)) {
+    count = 1;
+    const ul = document.createElement("ul");
+    ul.innerHTML = n.area.lists
+      .map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.kind)}</a></li>`)
+      .join("");
+    d.append(ul);
+    sum.addEventListener("click", () => focusArea(n.area));
+    n.area.el = d;
+  }
+  for (const c of n.children) count += renderNode(c, d, hit, open);
+  if (!count) return 0;
+
+  // 件数は子を持つノード (都道府県・市区) にだけ出す。末端に (1) と付けても情報がない。
+  sum.innerHTML = esc(n.label) + (n.children.length ? ` <span class="count">(${count})</span>` : "");
+  parentEl.append(d);
+  return count;
 }
 
 // ツリー項目のクリック -> 地図をそのエリアへ寄せて吹き出しを開く。
@@ -239,8 +307,7 @@ function focusArea(a) {
 // ピンのクリック -> ツリー側の該当項目を開いて見える位置までスクロールする。
 function revealArea(a) {
   if (!a.el) return;
-  a.el.open = true;
-  a.el.closest("details.pref").open = true;
+  for (let el = a.el; el; el = el.parentElement && el.parentElement.closest("details")) el.open = true;
   a.el.scrollIntoView({ block: "center", behavior: "smooth" });
   a.el.classList.add("hit");
   setTimeout(() => a.el.classList.remove("hit"), 1500);

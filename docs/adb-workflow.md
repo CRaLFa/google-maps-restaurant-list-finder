@@ -98,7 +98,7 @@ Xperia XQ-GE44 (1080x2340) で全件収集を実施し、**385 件**を取得し
   距離そのものより duration が効く。250ms のフリックは慣性で指定量以上スクロールする。
 
 - **【訂正】385 件は全件ではなかった。実際は 461 件。**
-  後日 adb-clip 方式の [`fetch_share_urls.py`](../scripts/fetch_share_urls.py) で全件収集したところ 461 件取得でき、
+  後日 adb-clip 方式の [`fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) で全件収集したところ 461 件取得でき、
   385 件はその部分集合 (76 件を取りこぼし、欠落は種別 26/25/25 と一様) だった。
   誤判定の原因は「700px 版と 600px 版が一致したから全件」という推論の穴にある。
   両者は「固定量スワイプ → 1 回 dump」という同一構造の盲点 (スワイプの継ぎ目に入った項目を飛ばす) を共有しており、
@@ -204,17 +204,17 @@ adb.exe -s $DEV shell /data/local/tmp/clip | grep -o 'https://maps\.app\.goo\.gl
 
 ### 実装スクリプト
 
-[`fetch_share_urls.py`](../scripts/fetch_share_urls.py) が上記手順を全件自動化する。
+[`fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) が上記手順を全件自動化する。
 adb-clip 方式で実装済み。リポジトリルートから実行する。
 
 ```bash
 cd <リポジトリルート>
 # 事前に adb-clip を push しておくこと (tools/adb-clip/README.md 参照)
-DEV=192.0.2.1:42931 python3 scripts/fetch_share_urls.py       # 全件
-DEV=... MAX=5 OUT=data/test.tsv python3 scripts/fetch_share_urls.py   # 動作確認 (5 件だけ別ファイルへ)
+DEV=192.0.2.1:42931 python3 scripts/collect/fetch_share_urls.py       # 全件
+DEV=... MAX=5 python3 scripts/collect/fetch_share_urls.py            # 動作確認 (5 件だけ)
 ```
 
-- 結果は `share-urls.tsv` (リスト名 \t URL) に逐次追記。中断しても `done` を読んで再開する。
+- 結果は Firestore の `lists` へ逐次 upsert。既知の名前はスキップするので中断しても再開できる。
 - コピー前に番兵をクリップボードへ書き、更新されなければ失敗として 2 回までリトライ。
 - **「クリップボードにコピー」タップで共有シートは自動で閉じる。**
   余計な戻るキーを押すとリスト画面まで畳んでしまい毎回 top から再構築する羽目になるので、
@@ -229,7 +229,7 @@ UI dump から URL を抜いていた。PII 混入の dump が必要で手順も
 ## 3. 各リストの保存済みからの削除 (実施済み)
 
 2026-07-26 に「トップリスト以外 (トレンド / 地元で人気)」のフォロー中リストを全削除した。
-実装は [`delete_lists.py`](../scripts/delete_lists.py)。以下は実機 (Xperia XQ-GE44 / Android 16) で確認した挙動。
+実装は [`delete_lists.py`](../scripts/collect/delete_lists.py)。以下は実機 (Xperia XQ-GE44 / Android 16) で確認した挙動。
 
 ### 実証した挙動
 
@@ -275,9 +275,9 @@ UI dump から URL を抜いていた。PII 混入の dump が必要で手順も
 `share-urls.tsv` を「エリア名 → 種別」で集計すると、3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアがある。
 2026-07-26 時点で 168 エリア中 34 エリア・計 40 件が欠落していた。
 
-[`fetch_share_urls.py`](../scripts/fetch_share_urls.py) は**端末にフォロー済みのリストしか辿れない**ため、この欠落分は取得できない。
+[`fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) は**端末にフォロー済みのリストしか辿れない**ため、この欠落分は取得できない。
 未フォローのリストはエリアページから開く必要がある。
-これを自動化したのが [`fetch_missing_lists.py`](../scripts/fetch_missing_lists.py)。
+これを自動化したのが [`fetch_missing_lists.py`](../scripts/collect/fetch_missing_lists.py)。
 
 ### 経路
 
@@ -332,11 +332,12 @@ UI dump から URL を抜いていた。PII 混入の dump が必要で手順も
 
 ```bash
 cd <リポジトリルート>
-DEV=192.0.2.1:37011 python3 scripts/fetch_missing_lists.py        # 全件
-DEV=... OUT=data/test-missing.tsv MAX=2 python3 scripts/fetch_missing_lists.py  # 動作確認
+DEV=192.0.2.1:37011 python3 scripts/collect/fetch_missing_lists.py        # 全件
+DEV=... MAX=2 python3 scripts/collect/fetch_missing_lists.py            # 動作確認 (2 件だけ)
 ```
 
-欠落分は `share-urls.tsv` から自動で算出するので、対象を手で渡す必要はない。
+欠落分は Firestore から自動で算出するので、対象を手で渡す必要はない。
+まだ 1 件も無い新規エリアだけは `SEED=data/seed.tsv` で渡す (手順は [`development.md`](./development.md) の「新しいエリアを追加する」)。
 取得済みの名前はスキップするため resume-safe。
 1 件あたり 60〜70 秒。
 

@@ -12,7 +12,7 @@ cp .env.example .env                            # 環境変数を埋める
 go test ./... && go run ./cmd/server            # サーバ (http://localhost:8080)
 ```
 
-すべてのスクリプトはリポジトリのルートから実行する想定 (例: `python3 scripts/fetch_missing_lists.py`)。
+すべてのスクリプトはリポジトリのルートから実行する想定 (例: `python3 scripts/collect/fetch_missing_lists.py`)。
 
 ## 環境変数
 
@@ -49,30 +49,36 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
 - [`cmd/server/main.go`](../cmd/server/main.go) — Cloud Run で動かす静的配信 + API サーバ。
   `GET /api/lists` / `POST /api/reports` / `GET /api/config`。
 - [`cmd/server/web/index.html`](../cmd/server/web/index.html) — 単一 HTML のフロント。
-  Maps JavaScript API + 都道府県 ▶ エリア ▶ リストの 3 階層ツリー + 報告フォーム。ビルド不要。
+  Maps JavaScript API + 都道府県 ▶ 市区 ▶ エリア ▶ リストの入れ子ツリー + 報告フォーム。ビルド不要。
+  階層は所在地 (`loc`) が親のフルパスになっていることを利用して組み立てる。
+- [`cmd/server/tree_check.js`](../cmd/server/tree_check.js) — 上記の階層の組み立てを実データで検証する。
+  `node cmd/server/tree_check.js` で実行。`index.html` の `<script>` をそのまま読み込んで動かす。
 - [`scripts/store.py`](../scripts/store.py) — Firestore アクセスの集約先。
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
-- [`scripts/import_tsv.py`](../scripts/import_tsv.py) — `share-urls.tsv` と `coords.tsv` を結合して Firestore の `lists` へ投入する。
-  冪等。`--dry-run` で Firestore に触らず検証だけ行う。TSV からの復旧用に残している。
 
-## 収集スクリプト (adb 方式)
+## 収集スクリプト
 
-実機の Google マップアプリを adb + uiautomator で自動操作する。
+収集系は [`scripts/collect/`](../scripts/collect/) にまとめてある。
+新しいエリアを足すときにしか動かさず、日常的に触るのは Web アプリの方だから。
+`scripts/` 直下に残しているのは、どこからでも import される共通モジュール (`store.py` / `locations.py`) だけ。
+
+4 本のうち 3 本は実機の Google マップアプリを adb + uiautomator で自動操作する。
 Web 版の DevTools コンソールで抽出する方式も試したが、一度に数十件しか描画されず全件取得できないため廃止した。
+残る `fetch_coords.py` は端末ではなく PC のブラウザを使う。
 
 読み書きはすべて Firestore に対して行う。実行前に `.env` を用意すること。
 
-- [`scripts/fetch_share_urls.py`](../scripts/fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を記録する。
+- [`scripts/collect/fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) — フォロー中リストを一巡し、各リストの共有 URL を記録する。
   既知の名前はスキップするため resume-safe。
-- [`scripts/fetch_missing_lists.py`](../scripts/fetch_missing_lists.py) — 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、
+- [`scripts/collect/fetch_missing_lists.py`](../scripts/collect/fetch_missing_lists.py) — 3 種類 (トップリスト / トレンド / 地元で人気) が揃っていないエリアを算出し、
   エリア検索から未フォローのリストを開いて共有 URL を取得する。
   フォロー (保存) するのはトップリストのみ。
   `SEED=data/seed.tsv` を渡すと、まだ 1 件も無い新規エリアも対象にできる。
-- [`scripts/delete_lists.py`](../scripts/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外を一括削除 (フォロー解除) する。
+- [`scripts/collect/delete_lists.py`](../scripts/collect/delete_lists.py) — 「〇〇: トップリスト」は残し、それ以外を一括削除 (フォロー解除) する。
   **端末側の削除は不可逆。**
   Firestore のドキュメントは消さず `followed` を false にするので、共有 URL からの再フォローで復元できる。
-- [`scripts/fetch_coords.py`](../scripts/fetch_coords.py) — **adb 不要。**
+- [`scripts/collect/fetch_coords.py`](../scripts/collect/fetch_coords.py) — **adb 不要。**
   エリアごとの代表 URL (トップリスト優先) を PC のブラウザで開き、リダイレクト後の URL から地図の中心座標を読んで、
   同一エリアの全リストの `lat` / `lng` を更新する。
   座標が入っているエリアはスキップするため resume-safe。
@@ -82,13 +88,63 @@ Web 版の DevTools コンソールで抽出する方式も試したが、一度
   更新しないと収集スクリプトがそのリストを記録できない。
   同名の区 (中央区・北区) は端末から区別できないため所在地を手で与える必要がある。
   `python3 scripts/locations.py` で自己チェック。
-- [`scripts/set_locations.py`](../scripts/set_locations.py) — `data/share-urls.tsv` の 3 列目 (所在地) を `locations.py` の対応表からセットする。
-  TSV 側の整合を保つためのもの。冪等。
-- [`scripts/normalize_tsv.py`](../scripts/normalize_tsv.py) — `data/share-urls.tsv` を全行 3 カラムに揃え、codepoint 順に並べ直す。
 - [`tools/adb-clip/`](../tools/adb-clip/) — クリップボード読み書き用に vendor した [polygraphene/adb-clip](https://github.com/polygraphene/adb-clip)。
 
 クリップボードは Android 10 以降フォアグラウンド以外から読めないため、adb-clip を `app_process` 経由で使って回避している。
 手順の詳細とハマりどころは [`adb-workflow.md`](./adb-workflow.md) を参照。
+
+### 新しいエリアを追加する
+
+1 エリアあたり 3 リスト (トップリスト / トレンド / 地元で人気) を取るのに 3〜4 分かかる。
+
+**1. 所在地を決める。**
+所在地が決まらないエリアは端末を触る前に対象から外れるので、ここが先。
+決め方は 2 通りあり、どちらか一方でよい。
+
+- [`data/seed.tsv`](../data/seed.tsv) の 2 列目に直接書く。単発の追加はこれで足りる。
+- [`scripts/locations.py`](../scripts/locations.py) の対応表 (`CITIES` / `WARDS` / `DISTRICTS` / `METRO`) に足す。
+  同じ規則で今後も増えるエリア種別ならこちら。`python3 scripts/locations.py` で自己チェックが走る。
+
+所在地は必ず都道府県から始まる住所表記にする (`東京都豊島区` など)。
+**この値がそのままツリーの親になる**ので、`池袋` の所在地を `東京都豊島区` にすれば豊島区の下にぶら下がる。
+親にあたるエリア (この例なら豊島区) を収集していなくても、中間ノードは自動で補われる。
+
+**2. シードに追記する。**
+
+```
+エリア名<TAB>所在地<TAB>検索語
+```
+
+2 列目以降は省略可。検索語はエリア名で検索して目的のエリアページに到達できないときだけ指定する。
+
+**3. 端末を繋いで共有 URL を取る。**
+
+```bash
+DEV=192.0.2.1:37011 SEED=data/seed.tsv python3 scripts/collect/fetch_missing_lists.py
+DEV=... SEED=data/seed.tsv MAX=2 python3 scripts/collect/fetch_missing_lists.py   # 動作確認
+```
+
+`SEED` を渡さないと、既に 1 件以上ある エリアの欠けている種別しか対象にならない。
+新規エリアには必ず渡すこと。
+Firestore へ 1 件ずつ書くので中断しても再開できる。
+
+**4. 座標を取る。**
+
+```bash
+python3 scripts/collect/fetch_coords.py
+```
+
+端末は要らない (PC のブラウザを使う)。座標が入っているエリアはスキップするので、引数なしで流せばよい。
+**これを忘れると地図にピンが出ない。**
+
+**5. 確認する。**
+
+```bash
+go run ./cmd/server   # http://localhost:8080
+```
+
+`GET /api/lists` はプロセス内に 5 分キャッシュするので、起動済みのサーバではすぐに反映されない。
+本番 (Cloud Run) も同じで、デプロイし直さなくても最大 5 分で出てくる。
 
 ### 前提
 
@@ -98,24 +154,73 @@ Web 版の DevTools コンソールで抽出する方式も試したが、一度
 - adb 操作中は端末を画面オン + ロック解除のままにする (クリップボード読み取り・スリープ対策)。
 - 収集される UI dump には連絡先候補等の個人情報が混じり得るため、**dump をリポジトリやログに残さないこと。**
 
-## データファイル
+## データ
 
-正データは Firestore。以下の TSV は初回インポート元と復旧用として残している。
+正データは Firestore の名前付きデータベース `restaurant-lists`。
+コレクションは `lists` (収集したリスト) と `reports` (閲覧者からの報告) の 2 つ。
+フィールドの定義は [`webapp-design.md`](./webapp-design.md) のデータモデルを参照。
 
-- [`data/share-urls.tsv`](../data/share-urls.tsv) — `リスト名 <TAB> 共有 URL <TAB> 所在地` の TSV。
-  フォロー中かどうかに関わらず、収集したエリア別リストをすべて記録する。
-  削除したリストのバックアップも兼ねる (URL から再フォローで復元可能)。
-  1 列目は Google 上の実際のリスト名 (「中区」「渋谷」等、全国で同名になり得る)。
-  3 列目は同名エリアを区別するための所在地で、都道府県から始まる住所表記
-  (`北海道` / `愛知県名古屋市` / `東京都港区` のように粒度はエリア種別で変わる) を入れる。
-  3 列目は必須で、区別が不要なエリアも都道府県名だけは入れる (`東京都` エリアの所在地は `東京都`)。
-  Firestore ではドキュメント ID の一部になるため空を許さない。
-  一意キーは (1 列目, 3 列目) の組。
-- [`data/coords.tsv`](../data/coords.tsv) — エリアごとの中心座標。`エリア名 <TAB> 所在地 <TAB> 緯度 <TAB> 経度` の TSV。
-  キーは `share-urls.tsv` と同じ (エリア名, 所在地) の組で、リスト種別の接尾辞は付かない。
+`lists` の要点だけ再掲する。
+
+- ドキュメント ID は `{所在地}|{リスト名}` の決定論的な値。
+  一意キー (リスト名, 所在地) をそのまま ID にしているので、同期は冪等な upsert で済む。
+- リスト名は Google 上の実際の名前 (「中区」「渋谷」等、全国で同名になり得る)。
+- 所在地 (`loc`) は同名エリアを区別するための、都道府県から始まる住所表記。
+  粒度はエリア種別で変わる (`北海道` / `愛知県名古屋市` / `東京都港区`)。
+  **必須。** ドキュメント ID の一部なので空を許さない。
+  区別が不要なエリアも都道府県名だけは入れる (`東京都` エリアの所在地は `東京都`)。
+  この値がそのまま親のフルパスになり、フロントのツリーの階層になる。
+- 座標 (`lat` / `lng`) はエリア単位の値をリスト側に非正規化して持つ。
   同一エリアでも 3 リストの中心は数 km ずれるため、トップリストの中心を代表値としている。
+- フォロー中かどうかに関わらず、収集したエリア別リストをすべて記録する。
+  端末から削除したリストも `followed` を false にして残す (URL から再フォローで復元可能)。
+
+### ファイルとして残しているもの
+
 - [`data/seed.tsv`](../data/seed.tsv) — `fetch_missing_lists.py` の `SEED` に渡す新規エリア候補の一覧。
   試した検索語・所在地の記録を兼ねるため、取得済みの行も削除せず残している。
+- [`data/archive/`](../data/archive/) — Firestore へ移行した時点の TSV を凍結したもの。
+  `share-urls.tsv` (リスト名 / 共有 URL / 所在地) と `coords.tsv` (エリア名 / 所在地 / 緯度 / 経度)。
+  以後更新しない。読むのは `import_tsv.py` と `tree_check.js` だけ。
+
+### バックアップと復旧
+
+Firestore のスケジュールバックアップを日次で取っている (保持 7 日)。
+設定済みなので、作り直すとき以外は実行しなくてよい。
+
+```bash
+gcloud firestore backups schedules create --database=restaurant-lists \
+  --recurrence=daily --retention=7d
+```
+
+設定内容と取得済みのバックアップの確認。
+
+```bash
+gcloud firestore backups schedules list --database=restaurant-lists
+gcloud firestore backups list --location=asia-northeast1
+```
+
+リストアは既存のデータベースに上書きできず、**新しいデータベースが作られる。**
+
+```bash
+gcloud firestore databases restore \
+  --source-backup=projects/<PROJECT>/locations/asia-northeast1/backups/<BACKUP_ID> \
+  --destination-database=restaurant-lists-restored
+```
+
+復旧後は `FIRESTORE_DATABASE` を新しい名前に向ける。
+Cloud Run 側は `gcloud run services update --set-env-vars FIRESTORE_DATABASE=...` で切り替わる。
+
+バックアップが失われた場合の最後の手段が [`scripts/restore/import_tsv.py`](../scripts/restore/import_tsv.py) による
+`data/archive/` からの復元。
+冪等で、`--dry-run` を付けると Firestore に触らず検証だけ行う。
+
+```bash
+python3 scripts/restore/import_tsv.py --dry-run   # 検証のみ
+python3 scripts/restore/import_tsv.py             # 投入
+```
+
+移行時点の 571 件に戻るだけで、それ以降に増えたエリアは復旧できない。
 
 ### 収録内容 (2026-07-27 時点)
 
