@@ -13,7 +13,7 @@ const ctx = vm.createContext({
   setTimeout, clearTimeout, console,
 });
 // let 宣言は vm のグローバルに載らないので、取り出す口を足しておく。
-vm.runInContext(src + "\nglobalThis.getRoots = () => roots;", ctx);
+vm.runInContext(src + "\nglobalThis.getRoots = () => roots;\nglobalThis.getAreas = () => areas;", ctx);
 
 // data/archive/ の TSV から /api/lists 相当の行を組み立てる。
 // 正データは Firestore だが、こちらは移行時点で凍結されているぶん
@@ -60,6 +60,13 @@ eq(pathOf(roots, "上野"), "東京都 > 台東区 > 上野", "上野の階層 (
 // 東京都 のリストは 東京 のリストとパスが前方一致するため、素朴な推測だと 東京 > 都 に化ける。
 eq(pathOf(roots, "東京都"), "東京都", "東京都のリストの階層 (根の都道府県ノードそのもの)");
 eq(pathOf(roots, "東京"), "東京都 > 東京", "東京のリストの階層");
+// リストの並びは トップリスト → 地元で人気 → トレンド の固定順。
+const order = ["トップリスト", "地元で人気", "トレンド"];
+const badOrder = ctx.getAreas().filter(a => {
+  const r = a.lists.map(l => order.indexOf(l.kind));
+  return r.some((v, i) => i > 0 && v < r[i - 1]);
+});
+eq(badOrder.length, 0, `リストの並び順が崩れているエリア (例: ${badOrder[0]?.area})`);
 eq(roots[0].label, "北海道", "最北の都道府県");
 eq(roots.at(-1).label, "沖縄県", "最南の都道府県");
 

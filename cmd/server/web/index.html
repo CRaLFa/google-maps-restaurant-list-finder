@@ -31,7 +31,7 @@
   }
   #search { padding: 8px; border-bottom: 1px solid var(--border); }
   #search input { width: 100%; padding: 8px; font-size: 15px; }
-  #tree { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  #tree { flex: 1; overflow-y: auto; padding: 4px 8px; font-size: 16px; }
   #tree summary { cursor: pointer; padding: 4px 0; color: var(--fg); }
   #tree > .node > summary { font-weight: bold; }
   #tree .node .node { margin-left: 14px; }
@@ -197,7 +197,11 @@ function buildAreas(rows) {
     byArea.get(key).lists.push(r);
   }
   areas = [...byArea.values()];
-  for (const a of areas) a.lists.sort((x, y) => x.kind.localeCompare(y.kind, "ja"));
+  // 表示順は トップリスト → 地元で人気 → トレンド の固定順。
+  // 未知の種類は末尾に回す。
+  const kindOrder = ["トップリスト", "地元で人気", "トレンド"];
+  const rank = k => (kindOrder.indexOf(k) + 1 || kindOrder.length + 1);
+  for (const a of areas) a.lists.sort((x, y) => rank(x.kind) - rank(y.kind) || x.kind.localeCompare(y.kind, "ja"));
   buildTree();
 }
 
