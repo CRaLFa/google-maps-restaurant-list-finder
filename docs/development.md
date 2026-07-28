@@ -57,6 +57,32 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
 
+## デプロイ
+
+Cloud Run へはローカルから手で叩く。
+
+```bash
+gcloud run deploy google-maps-restaurant-list-finder \
+  --project sandbox-morita-1-441408 \
+  --source . \
+  --region asia-northeast1 \
+  --set-build-env-vars GOOGLE_BUILDABLE=./cmd/server
+```
+
+サービスアカウント・環境変数・`--allow-unauthenticated` は既存のサービスの設定を引き継ぐので、
+変えたいときだけ `--service-account` や `--set-env-vars` を足す。
+初回作成時のフルのコマンドは [`webapp-design.md`](./webapp-design.md) にある。
+
+`--project` を明示しているのは、`gcloud config` の既定プロジェクトが別を向いているため。
+グローバル設定は変えずにコマンド側で指定する。
+
+`GOOGLE_BUILDABLE` は必須。
+Go の buildpack はリポジトリ直下の main パッケージを探すが、ここでは `cmd/server` にしかないため、
+指定しないとビルドが失敗する。
+
+デプロイ前に `go test ./...` と `node cmd/server/tree_check.js` を通しておくこと。
+CI はまだ無いので、通し忘れても止めてくれるものがない。
+
 ## 収集スクリプト
 
 収集系は [`scripts/collect/`](../scripts/collect/) にまとめてある。
