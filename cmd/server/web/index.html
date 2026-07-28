@@ -197,22 +197,33 @@ function buildAreas(rows) {
 // つまり 所在地 + エリア名 をフルパスとして扱えば、親子関係がそのまま木になる。
 function buildTree() {
   const nodes = new Map();   // フルパス -> ノード
-  const node = path => {
-    if (!nodes.has(path)) nodes.set(path, { path, label: path, lat: -Infinity, area: null, children: [] });
-    return nodes.get(path);
+  // 親が分かっているノードは parent に持たせる。
+  // undefined のものだけ、あとでパスの前方一致から親を推測する。
+  const node = (path, parent) => {
+    if (!nodes.has(path)) nodes.set(path, { path, label: path, parent, lat: -Infinity, area: null, children: [] });
+    const n = nodes.get(path);
+    if (n.parent === undefined) n.parent = parent;
+    return n;
   };
   for (const a of areas) {
-    node(a.pref);                     // 都道府県は木の根
+    node(a.pref, "");                 // 都道府県は木の根
     node(a.loc);                      // 収集対象になっていない市区を中間ノードとして補う
-    node(a.loc + a.area).area = a;
+    // エリア名が都道府県名そのもの (東京都のリストなど) なら、根の都道府県ノードに直接持たせる。
+    // 別ノードにすると 東京都 > 東京都 と同じラベルが二重に出てしまう。
+    if (a.area === a.pref) node(a.pref).area = a;
+    else node(a.loc + a.area, a.loc).area = a;   // エリアの親は所在地そのもの
   }
 
-  // 親は「自分より短い既知のパスのうち最長のもの」。見つからなければ根 (都道府県)。
+  // 親の分からない中間ノードだけ「自分より短い既知のパスのうち最長のもの」を親にする。
+  // 候補は所在地として実在するパスに限る。
+  // エリアのパスまで候補にすると、東京都東京都 (東京都のリスト) が
+  // 東京都東京 (東京のリスト) の子に化けるような取り違えが起きる。
+  const locPaths = [...new Set(areas.flatMap(a => [a.pref, a.loc]))].sort((x, y) => y.length - x.length);
   // ラベルは親のパスを差し引いた残り。東京都台東区 なら 台東区 になる。
-  const paths = [...nodes.keys()].sort((x, y) => y.length - x.length);
   roots = [];
   for (const n of nodes.values()) {
-    const parent = paths.find(p => p.length < n.path.length && n.path.startsWith(p));
+    const parent = n.parent
+      ?? locPaths.find(p => p.length < n.path.length && n.path.startsWith(p));
     if (!parent) { roots.push(n); continue; }
     n.label = n.path.slice(parent.length);
     nodes.get(parent).children.push(n);
@@ -268,10 +279,13 @@ function render() {
 
 // ノードとその子孫を描き、表示したエリア数を返す。
 // 0 なら自身も子孫もヒットしていないので、そのノードは追加しない。
-function renderNode(n, parentEl, hit, open) {
+// 自分にリストが無く子も 1 つだけのノードは、開いても選択肢が増えない。
+// その唯一の子を最初から開いておき、リンクまで一手で辿り着けるようにする (onlyChild)。
+// 自分にリストがあるなら、開いた先で「そのエリア自身か子か」を選ぶ意味があるので開かない。
+function renderNode(n, parentEl, hit, open, onlyChild) {
   const d = document.createElement("details");
   d.className = "node";
-  d.open = open;
+  d.open = open || !!onlyChild;
   const sum = document.createElement("summary");
   d.append(sum);
 
@@ -286,7 +300,7 @@ function renderNode(n, parentEl, hit, open) {
     sum.addEventListener("click", () => focusArea(n.area));
     n.area.el = d;
   }
-  for (const c of n.children) count += renderNode(c, d, hit, open);
+  for (const c of n.children) count += renderNode(c, d, hit, open, n.children.length === 1 && !n.area);
   if (!count) return 0;
 
   // 件数は子を持つノード (都道府県・市区) にだけ出す。末端に (1) と付けても情報がない。
@@ -305,10 +319,12 @@ function focusArea(a) {
 }
 
 // ピンのクリック -> ツリー側の該当項目を開いて見える位置までスクロールする。
+// 縦積みのスマホ表示ではツリーが地図の下にあり、スクロールすると開いた吹き出しが画面外に出てしまう。
+// 開くだけにして、スクロールは PC 表示のときだけ行う。
 function revealArea(a) {
   if (!a.el) return;
   for (let el = a.el; el; el = el.parentElement && el.parentElement.closest("details")) el.open = true;
-  a.el.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (!matchMedia("(max-width: 768px)").matches) a.el.scrollIntoView({ block: "center", behavior: "smooth" });
   a.el.classList.add("hit");
   setTimeout(() => a.el.classList.remove("hit"), 1500);
 }
