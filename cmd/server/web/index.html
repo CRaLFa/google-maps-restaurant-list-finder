@@ -55,6 +55,11 @@
   }
   dialog .req::after { content: " *"; color: var(--danger); }
   dialog .note { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
+  dialog .note a { color: var(--accent); }
+  /* reCAPTCHA のバッジは全ページの右下に居座り、スマホでは地図をかなり覆ってしまう。
+     隠す代わりに、Google が求める帰属表示を報告フォームに置いている。
+     display: none だと実行が壊れることがあるので visibility で消す。 */
+  .grecaptcha-badge { visibility: hidden; }
   dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   #report-msg:not(:empty) { margin-top: 10px; padding: 8px; background: var(--note-bg); border-radius: 4px; }
   .popup b { display: block; margin-bottom: 2px; font-size: 14px; }
@@ -105,6 +110,7 @@
     <label for="f-contact">連絡先 (任意)</label>
     <input id="f-contact" name="contact" maxlength="200">
     <p class="note">連絡先は確認の連絡にのみ使い、90 日後に自動削除します。</p>
+    <p class="note">このサイトは reCAPTCHA によって保護されており、Google の<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">プライバシーポリシー</a>と<a href="https://policies.google.com/terms" target="_blank" rel="noopener">利用規約</a>が適用されます。</p>
     <div id="report-msg"></div>
     <div class="actions">
       <button type="button" id="report-cancel">閉じる</button>
