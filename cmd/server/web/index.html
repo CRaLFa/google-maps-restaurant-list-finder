@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>レストランリスト検索</title>
+<title>Google マップ公式レストランリスト検索</title>
 <style>
   /* color-scheme を宣言しておくとフォーム部品とスクロールバーが OS の設定に追随する。 */
   :root {
@@ -76,7 +76,10 @@
     .popup { background: var(--bg); }
     .gm-style-iw-c, .gm-style-iw-d { background: var(--bg) !important; }
     .gm-style-iw-tc::after { background: var(--bg) !important; }
-    .gm-style-iw-c button span { filter: invert(1); }
+    /* 閉じるボタンの ✕ は mask-image + background-color で描かれている。
+       Google 側がダークモードでは既に白にしているので、invert すると逆に黒くなって沈む。
+       追随を当てにせず本文と同じ色に固定する。インラインスタイルで色が付くので !important が要る。 */
+    .gm-style-iw-c button span { background-color: var(--fg) !important; }
   }
 
   @media (max-width: 768px) {
