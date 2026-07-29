@@ -57,9 +57,69 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
 
-## デプロイ
+## CI/CD
 
-Cloud Run へはローカルから手で叩く。
+Cloud Build で回す。設定は [`../cloudbuild.yaml`](../cloudbuild.yaml)。
+
+| トリガ | 発火条件 | 動作 |
+| --- | --- | --- |
+| `test-pr` | `master` への PR | 検査のみ |
+| `deploy-master` | `master` への push | 検査 + Cloud Run へデプロイ |
+
+検査は Go (`go vet` / `go test`)、Python (`locations.py` / `store.py` の自己チェック、`import_tsv.py --dry-run`)、
+Node (`tree_check.js`) の 3 ステップ。
+いずれも Firestore に接続しないので、CI 用のサービスアカウントにデータへの権限は要らない。
+
+設定ファイルは 1 つにして、デプロイするかどうかだけを `_DEPLOY` 置換変数で切り替える。
+2 つに分けると検査のステップが二重管理になるため。
+`deploy-master` だけが `_DEPLOY=true` を渡し、PR 側は既定の `false` のままデプロイのステップを素通りする。
+
+**ドキュメントだけの変更ではビルドを起こさない。**
+これはトリガ側の `--ignored-files` で行う (`cloudbuild.yaml` には書けない)。
+変更されたファイルが全部このパターンに一致するとビルドがスキップされる。
+一致しないファイルが 1 つでもあれば通常どおり走る。
+
+### トリガの作り直し
+
+GitHub 接続 (`gh`) とトリガは作成済みなので、通常は触らない。
+作り直すときのために手順を残す。
+
+```bash
+P=sandbox-morita-1-441408
+R=asia-northeast1
+REPO=projects/$P/locations/$R/connections/gh/repositories/google-maps-restaurant-list-finder
+IGNORED='**/*.md,*.md,docs/**,LICENSE,.gitignore'
+SA=projects/$P/serviceAccounts/cloud-build@$P.iam.gserviceaccount.com
+
+# master への push → 検査 + デプロイ
+gcloud builds triggers create github --name=deploy-master \
+  --project=$P --region=$R --repository=$REPO \
+  --branch-pattern='^master$' --build-config=cloudbuild.yaml \
+  --substitutions=_DEPLOY=true --ignored-files="$IGNORED" --service-account=$SA
+
+# master への PR → 検査のみ
+gcloud builds triggers create github --name=test-pr \
+  --project=$P --region=$R --repository=$REPO \
+  --pull-request-pattern='^master$' --comment-control=COMMENTS_DISABLED \
+  --build-config=cloudbuild.yaml \
+  --ignored-files="$IGNORED" --service-account=$SA
+```
+
+`--comment-control=COMMENTS_DISABLED` は PR を開いた時点で自動で走らせるため。
+既定の `COMMENTS_ENABLED` だと、リポジトリのオーナーが `/gcbrun` とコメントするまで待たされる。
+外部から PR が飛んでくるリポジトリではないので無効にしてよい。
+
+ビルドは `cloud-build@` サービスアカウントで動く。
+Cloud Run へのデプロイに要る `run.developer` / `iam.serviceAccountUser` / `artifactregistry.writer` を持たせてある。
+`cloudbuild.yaml` の `options.logging: CLOUD_LOGGING_ONLY` は、
+ユーザー指定のサービスアカウントを使う場合にログの出力先を明示しないとビルドが起動しないため。
+
+GitHub 接続の作成には Cloud Build の P4SA (`service-*@gcp-sa-cloudbuild.iam.gserviceaccount.com`) に
+`roles/secretmanager.admin` が要る (認可トークンを Secret Manager に置くため)。付与済み。
+
+### 手動デプロイ
+
+CI を通さずに出したいときはローカルから直接叩く。
 
 ```bash
 gcloud run deploy google-maps-restaurant-list-finder \
@@ -79,9 +139,6 @@ gcloud run deploy google-maps-restaurant-list-finder \
 `GOOGLE_BUILDABLE` は必須。
 Go の buildpack はリポジトリ直下の main パッケージを探すが、ここでは `cmd/server` にしかないため、
 指定しないとビルドが失敗する。
-
-デプロイ前に `go test ./...` と `node cmd/server/tree_check.js` を通しておくこと。
-CI はまだ無いので、通し忘れても止めてくれるものがない。
 
 ## 収集スクリプト
 
