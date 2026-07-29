@@ -117,7 +117,13 @@
     /* 縦積みでは地図を上にしたいので、DOM 順 (リスト -> 地図) を order で入れ替える。 */
     body { flex-direction: column; }
     #map { flex: none; height: 50vh; order: -1; }
-    #side { flex: 1; min-width: 0; border-right: none; border-top: 1px solid var(--border); }
+    /* min-height: 0 が要る。
+       flex アイテムの min-height: auto は「中身の最小高さ」に解決されるため、#side の下限が
+       #search + #tree の中身ぜんぶ + footer になり、flex: 1 で縮められなくなる。
+       そうなると #tree { overflow-y: auto } の出番が無く、ページ全体がスクロールして
+       地図が画面外に流れ、報告ボタンもツリーの末尾まで送られてしまう。
+       PC 表示で起きないのは、この下限が効くのが flex の主軸だけだから (row では横方向)。 */
+    #side { flex: 1; min-width: 0; min-height: 0; border-right: none; border-top: 1px solid var(--border); }
     /* 狭い画面ではダイアログを全画面にする。箱は dialog そのものではなく article なので、そちらを伸ばす。 */
     dialog > article { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0; }
   }
