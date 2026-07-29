@@ -579,13 +579,10 @@ Slack / Discord の Webhook なら外部サービスの登録すら要らず、U
 
 ### Favicon の設定
 
-現状は favicon を置いていないため、ブラウザが `/favicon.ico` を取りに来て 404 になり、
-タブにもブックマークにも既定のアイコンが出る。
-スマートフォンでホーム画面に追加したときも同じ。
-
-SVG 1 枚を `cmd/server/web/` に置いて `<link rel="icon" type="image/svg+xml" href="/favicon.svg">` を張るのが最小。
+`cmd/server/web/favicon.svg` に絵文字 (🍽️) を `<text>` で描いただけの SVG を置き、
+`index.html` から `<link rel="icon" type="image/svg+xml" href="/favicon.svg">` で参照している。
 `//go:embed all:web` の対象なので配信は勝手に付いてくる。
-ダークモードで色を変えたいなら SVG の中に `prefers-color-scheme` のスタイルを書ける。
 
-Safari と古いブラウザは SVG の favicon を読まないので、
-そこまで面倒を見るなら PNG か ICO をフォールバックとして併置する。
+字形は OS の絵文字フォント任せなので環境ごとに見た目が変わる。
+Safari と古いブラウザは SVG の favicon を読まないため既定アイコンにフォールバックする。
+そこまで面倒を見るなら PNG か ICO を併置する。

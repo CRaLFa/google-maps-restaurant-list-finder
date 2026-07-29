@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- 絵文字を text で描くだけの favicon。
+  実際の字形は OS の絵文字フォント任せなので環境ごとに見た目が変わる。 -->
+  <text y=".9em" font-size="90">🍽️</text>
+</svg>
