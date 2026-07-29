@@ -55,8 +55,12 @@ steps:
           echo "_DEPLOY が true ではないのでデプロイしない。"
           exit 0
         fi
+        # --quiet は確認を既定値で通すため。
+        # 端末が無い環境では gcloud が自動で確認を抑止するので現状は無くても動くが、
+        # 抑止しそこねた場合に既定値ではなく中断が選ばれうるので明示しておく。
         gcloud run deploy google-maps-restaurant-list-finder \
           --project "$PROJECT_ID" \
           --source . \
           --region asia-northeast1 \
-          --set-build-env-vars GOOGLE_BUILDABLE=./cmd/server
+          --set-build-env-vars GOOGLE_BUILDABLE=./cmd/server \
+          --quiet
