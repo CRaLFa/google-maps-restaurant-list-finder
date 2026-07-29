@@ -68,7 +68,9 @@
   #tree ul { list-style: none; margin: 2px 0 6px 28px; padding: 0; }
   /* Pico は li 自身に list-style を持たせるので、ul 側で none にしても行頭記号が消えない。 */
   #tree li { list-style: none; margin: 0; padding: 0; }
-  #tree li a { text-decoration: none; }
+  /* リンクは inline のままだと文字の高さ・幅しか当たり判定にならないので、block にして行全体を押せるようにする。
+     padding を足さなければ高さは行送りのままで、下線も文字の部分だけに引かれるので見た目は変わらない。 */
+  #tree li a { display: block; text-decoration: none; }
   #tree li a:hover { text-decoration: underline; }
   #tree .count { color: var(--muted); font-weight: normal; }
   #tree .empty { color: var(--muted); padding: 12px 4px; }
@@ -133,6 +135,9 @@
        地図が画面外に流れ、報告ボタンもツリーの末尾まで送られてしまう。
        PC 表示で起きないのは、この下限が効くのが flex の主軸だけだから (row では横方向)。 */
     #side { flex: 1; min-width: 0; min-height: 0; border-right: none; border-top: 1px solid var(--border); }
+    /* 指でのタップは狙いが数 px ずれるので、ツリーの行間を広げて隣の行を踏みにくくする。 */
+    #tree summary { padding: 9px 0; }
+    #tree li a { padding: 3px 0; }
     /* 狭い画面ではダイアログを全画面にする。箱は dialog そのものではなく article なので、そちらを伸ばす。 */
     dialog > article { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0; }
   }
