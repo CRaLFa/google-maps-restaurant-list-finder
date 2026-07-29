@@ -47,10 +47,10 @@ Google 公式のエリア別リストはまさに後者にあたる。
 ## ドキュメント
 
 - [`docs/development.md`](./docs/development.md) — 開発ガイド。
-  セットアップ、環境変数、収集スクリプトの使い方、**新しいエリアを追加する手順**、Firestore のデータとバックアップ・復旧。
+  セットアップ、環境変数、収集スクリプトの使い方、**新しいエリアを追加する手順**、CI/CD、Firestore のデータとバックアップ・復旧。
 - [`docs/webapp-design.md`](./docs/webapp-design.md) — Web アプリの設計と、正データを TSV から Firestore へ移した記録。
   データモデル、API、画面設計、採用しなかった案とその理由。
-  末尾に今後の課題 (CI/CD、フロントの TypeScript 化、報告の通知) をまとめている。
+  末尾に今後の課題 (フロントの TypeScript 化、報告の通知) をまとめている。
 - [`docs/adb-workflow.md`](./docs/adb-workflow.md) — adb + uiautomator による収集手順の実証結果とハマりどころ。
   リスト一覧の全件収集 (スワイプの慣性による取りこぼしと対策)、共有 URL の取得、欠落しているエリア別リストの追加取得 (geo: インテント・曖昧なエリア名の扱い)。
 - [`docs/missing-areas.md`](./docs/missing-areas.md) — 政令指定都市の区や繁華街エリアの調査結果。
