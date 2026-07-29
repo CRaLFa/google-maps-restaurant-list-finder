@@ -123,7 +123,9 @@
   @media (max-width: 768px) {
     /* 縦積みでは地図を上にしたいので、DOM 順 (リスト -> 地図) を order で入れ替える。 */
     body { flex-direction: column; }
-    #map { flex: none; height: 50vh; order: -1; }
+    /* 50vh だと検索欄と報告ボタンの分だけツリーが 50vh 未満になり、画面の半分以上が地図になる。
+       縦長の端末ほど 50vh の実寸が大きく効くので、割合と上限の小さい方を採る。 */
+    #map { flex: none; height: min(40vh, 320px); order: -1; }
     /* min-height: 0 が要る。
        flex アイテムの min-height: auto は「中身の最小高さ」に解決されるため、#side の下限が
        #search + #tree の中身ぜんぶ + footer になり、flex: 1 で縮められなくなる。
@@ -381,12 +383,12 @@ function focusArea(a) {
 }
 
 // ピンのクリック -> ツリー側の該当項目を開いて見える位置までスクロールする。
-// 縦積みのスマホ表示ではツリーが地図の下にあり、スクロールすると開いた吹き出しが画面外に出てしまう。
-// 開くだけにして、スクロールは PC 表示のときだけ行う。
+// scrollIntoView が動かすのは祖先のスクロールボックスだけで、今はどの画面幅でも #tree しか該当しない。
+// スマホ表示でもページ全体は伸びないので、地図と吹き出しはその場に留まる。
 function revealArea(a) {
   if (!a.el) return;
   for (let el = a.el; el; el = el.parentElement && el.parentElement.closest("details")) el.open = true;
-  if (!matchMedia("(max-width: 768px)").matches) a.el.scrollIntoView({ block: "center", behavior: "smooth" });
+  a.el.scrollIntoView({ block: "center", behavior: "smooth" });
   a.el.classList.add("hit");
   setTimeout(() => a.el.classList.remove("hit"), 1500);
 }
