@@ -100,6 +100,11 @@
   .popup small { color: var(--fg); }
   .popup a { display: block; margin-top: 4px; color: var(--accent); text-decoration: none; }
   .popup a:hover { text-decoration: underline; }
+  /* InfoWindow の中身の箱には Google がインラインで overflow: auto を付けるため、Chrome では常時スクロールバーが出る。
+     しかも Google 側の要素は color-scheme が light のままなので、ダークモードでもバーだけ白く浮く。
+     吹き出しの中身は数行しかなく縦スクロールは要らないので、まるごと隠す。
+     ponytail: 中身が伸びたら切れる。行数が増えたら overflow-y: auto に戻して色を当てる。 */
+  .gm-style-iw-d { overflow: hidden !important; }
 
   /* 地図の colorScheme はタイルしか暗くせず、InfoWindow の吹き出しは白のままになる。
      中の文字だけダークモードの明るい色になって白地に白文字で消えるため、吹き出し側を暗くする。
