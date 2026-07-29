@@ -63,8 +63,10 @@ Cloud Build で回す。設定は [`../cloudbuild.yaml`](../cloudbuild.yaml)。
 
 | トリガ | 発火条件 | 動作 |
 | --- | --- | --- |
-| `test-pr` | `master` への PR | 検査のみ |
-| `deploy-master` | `master` への push | 検査 + Cloud Run へデプロイ |
+| `google-maps-restaurant-list-finder-test-pr` | `master` への PR | 検査のみ |
+| `google-maps-restaurant-list-finder-deploy-master` | `master` への push | 検査 + Cloud Run へデプロイ |
+
+トリガ名はプロジェクト内で一意なので、リポジトリ名を頭に付けて他のリポジトリのものと並んでも区別できるようにしている。
 
 検査は Go (`go vet` / `go test`)、Python (`locations.py` / `store.py` の自己チェック、`import_tsv.py --dry-run`)、
 Node (`tree_check.js`) の 3 ステップ。
@@ -92,18 +94,21 @@ IGNORED='**/*.md,*.md,docs/**,LICENSE,.gitignore'
 SA=projects/$P/serviceAccounts/cloud-build@$P.iam.gserviceaccount.com
 
 # master への push → 検査 + デプロイ
-gcloud builds triggers create github --name=deploy-master \
+gcloud builds triggers create github --name=google-maps-restaurant-list-finder-deploy-master \
   --project=$P --region=$R --repository=$REPO \
   --branch-pattern='^master$' --build-config=cloudbuild.yaml \
   --substitutions=_DEPLOY=true --ignored-files="$IGNORED" --service-account=$SA
 
 # master への PR → 検査のみ
-gcloud builds triggers create github --name=test-pr \
+gcloud builds triggers create github --name=google-maps-restaurant-list-finder-test-pr \
   --project=$P --region=$R --repository=$REPO \
   --pull-request-pattern='^master$' --comment-control=COMMENTS_DISABLED \
   --build-config=cloudbuild.yaml \
   --ignored-files="$IGNORED" --service-account=$SA
 ```
+
+トリガ名は後から変更できない (`gcloud builds triggers update` に `--name` が無い)。
+変えたいときは削除して作り直す。トリガは状態を持たないので消して困るものはない。
 
 `--comment-control=COMMENTS_DISABLED` は PR を開いた時点で自動で走らせるため。
 既定の `COMMENTS_ENABLED` だと、リポジトリのオーナーが `/gcbrun` とコメントするまで待たされる。
