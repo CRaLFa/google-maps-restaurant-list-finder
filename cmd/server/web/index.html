@@ -16,8 +16,10 @@
 <meta name="twitter:card" content="summary_large_image">
 <!-- クラスレス版 (pico.classless.css) ではなく通常版を使う。
      クラスレス版は body 直下の header/main/footer を中央寄せのコンテナにしてしまい、全画面 2 ペインのレイアウトと衝突する。
-     通常版はコンテナが .container を付けたときだけ効くので、素の要素の見た目だけを受け取れる。 -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+     通常版はコンテナが .container を付けたときだけ効くので、素の要素の見た目だけを受け取れる。
+     バージョンはパッチまで固定する。
+     @2 のようなメジャー指定だと、こちらが何もしていなくても配信される CSS が変わり、見た目が勝手に動く。 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css">
 <style>
   /* 配色は Pico の変数に委ねる。
      color-scheme の宣言もダークモードの上書きも Pico 側が持っているので、こちらでは別名を張るだけでよい。 */
@@ -132,7 +134,8 @@
 <body>
 <div id="side">
   <!-- Pico が input[type=search] に虫眼鏡アイコンを描くので、プレースホルダの 🔍 は外している。 -->
-  <div id="search"><input id="q" type="search" placeholder="地名で検索" autocomplete="off"></div>
+  <!-- placeholder はアクセシブルネームにならないので、aria-label を別に持たせる。 -->
+  <div id="search"><input id="q" type="search" aria-label="地名で検索" placeholder="地名で検索" autocomplete="off"></div>
   <div id="tree"></div>
   <footer><button id="report-btn">漏れているリストを報告</button></footer>
 </div>
