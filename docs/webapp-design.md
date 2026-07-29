@@ -441,15 +441,10 @@ gcloud firestore backups schedules create --database=restaurant-lists \
 - 191 個のピンの重なりが実使用で許容できるか。
   許容できなければ `@googlemaps/markerclusterer` を追加する。
 
-## 今後やりたいこと
+## CI/CD (Cloud Build)
 
-移行が済んで動き始めた後の課題。
-優先順位は付けていない。
-
-### CI/CD の整備 (Cloud Build)
-
-現状はローカルから `gcloud run deploy --source .` を手で叩いている。
-テストも手で流しているため、通し忘れたまま push できてしまう。
+導入済み。
+トリガの構成と作り直しの手順は [`development.md`](./development.md) にある。ここには選定の理由だけ残す。
 
 **Cloud Build を使う。**
 GitHub Actions ではなく Cloud Build を選ぶ理由は 3 つ。
@@ -465,28 +460,15 @@ GitHub Actions ではなく Cloud Build を選ぶ理由は 3 つ。
 GitHub Actions の利点は public リポジトリなら実行が無料な点だが、
 Cloud Build にも無料枠があり、この規模の実行頻度なら問題にならない。
 
-```yaml
-# cloudbuild.yaml (骨子)
-steps:
-  - name: golang:1.26
-    args: [go, vet, ./...]
-  - name: golang:1.26
-    args: [go, test, ./...]
-  - name: python:3.12
-    script: pip install -r requirements.txt && python scripts/locations.py && python scripts/store.py
-  - name: python:3.12
-    script: pip install -r requirements.txt && python scripts/restore/import_tsv.py --dry-run
-  - name: node:22
-    args: [node, cmd/server/tree_check.js]
-  # デプロイは main への push のときだけ
-```
-
-GitHub のリポジトリと繋ぐには Cloud Build のトリガを作る。
-`master` への push で発火させ、PR では検査だけ回してデプロイしない。
-
 Firestore に接続しないチェック (`locations.py` / `store.py` の自己チェック、`import_tsv.py --dry-run`、`tree_check.js`) だけでも、
 所在地の解決・ドキュメント ID の組み立て・TSV の整合・ツリーの階層はカバーできる。
-サービスアカウントに権限を付けるかどうかは、実データを読むテストを書きたくなってから決めればよい。
+実際それで足りたので、CI 用のサービスアカウントに Firestore への権限は付けていない。
+実データを読むテストを書きたくなったら `roles/datastore.user` を足す。
+
+## 今後やりたいこと
+
+移行が済んで動き始めた後の課題。
+優先順位は付けていない。
 
 ### フロントの TypeScript 化と CSS ライブラリの導入
 
@@ -579,13 +561,10 @@ Slack / Discord の Webhook なら外部サービスの登録すら要らず、U
 
 ### Favicon の設定
 
-現状は favicon を置いていないため、ブラウザが `/favicon.ico` を取りに来て 404 になり、
-タブにもブックマークにも既定のアイコンが出る。
-スマートフォンでホーム画面に追加したときも同じ。
-
-SVG 1 枚を `cmd/server/web/` に置いて `<link rel="icon" type="image/svg+xml" href="/favicon.svg">` を張るのが最小。
+`cmd/server/web/favicon.svg` に絵文字 (🍽️) を `<text>` で描いただけの SVG を置き、
+`index.html` から `<link rel="icon" type="image/svg+xml" href="/favicon.svg">` で参照している。
 `//go:embed all:web` の対象なので配信は勝手に付いてくる。
-ダークモードで色を変えたいなら SVG の中に `prefers-color-scheme` のスタイルを書ける。
 
-Safari と古いブラウザは SVG の favicon を読まないので、
-そこまで面倒を見るなら PNG か ICO をフォールバックとして併置する。
+字形は OS の絵文字フォント任せなので環境ごとに見た目が変わる。
+Safari と古いブラウザは SVG の favicon を読まないため既定アイコンにフォールバックする。
+そこまで面倒を見るなら PNG か ICO を併置する。

@@ -1,0 +1,66 @@
+# Cloud Build の設定。
+# master への push と PR の両方でこのファイルを使い、デプロイするかどうかだけを _DEPLOY で切り替える。
+# 設定ファイルを 2 つに分けると検査のステップが二重管理になるため。
+#
+# ドキュメントだけの変更でビルドを起こさない設定はここではなくトリガ側の ignoredFiles で行う。
+# トリガの作成コマンドは docs/development.md にある。
+
+substitutions:
+  # master への push トリガだけが true を渡す。
+  # PR トリガは既定の false のまま。
+  _DEPLOY: "false"
+
+options:
+  # ユーザー指定のサービスアカウントで動かす場合、ログの出力先を明示しないとビルドが起動しない。
+  logging: CLOUD_LOGGING_ONLY
+
+# デプロイのステップが内部で別のビルド (buildpacks) を回すため、既定の 10 分では足りない。
+timeout: 1800s
+
+steps:
+  - id: go
+    name: golang:1.26
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eux
+        go vet ./...
+        go test ./...
+
+  - id: python
+    name: python:3.12-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eux
+        pip install --quiet -r requirements.txt
+        python scripts/locations.py
+        python scripts/store.py
+        python scripts/restore/import_tsv.py --dry-run
+
+  - id: node
+    name: node:22-slim
+    args: [node, cmd/server/tree_check.js]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eu
+        if [ "$_DEPLOY" != "true" ]; then
+          echo "_DEPLOY が true ではないのでデプロイしない。"
+          exit 0
+        fi
+        # --quiet は確認を既定値で通すため。
+        # 端末が無い環境では gcloud が自動で確認を抑止するので現状は無くても動くが、
+        # 抑止しそこねた場合に既定値ではなく中断が選ばれうるので明示しておく。
+        gcloud run deploy google-maps-restaurant-list-finder \
+          --project "$PROJECT_ID" \
+          --source . \
+          --region asia-northeast1 \
+          --set-build-env-vars GOOGLE_BUILDABLE=./cmd/server \
+          --quiet
