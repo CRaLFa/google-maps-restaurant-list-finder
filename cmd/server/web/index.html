@@ -213,6 +213,12 @@
 <script>
 const PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
 
+// リストの種類ごとの絵文字。
+// 定義順がそのまま表示順 (トップリスト → 地元で人気 → トレンド) になる。
+const KIND_EMOJI = { "トップリスト": "🏆", "地元で人気": "💎", "トレンド": "📢" };
+const KINDS = Object.keys(KIND_EMOJI);
+const kindLabel = k => (KIND_EMOJI[k] ? KIND_EMOJI[k] + " " : "") + k;
+
 const treeEl = document.getElementById("tree");
 const sideEl = document.getElementById("side");
 // スマホ表示のシートは初期スクロール位置 (0) が最小化側なので、開いた状態から始める。
@@ -297,10 +303,9 @@ function buildAreas(rows) {
     byArea.get(key).lists.push(r);
   }
   areas = [...byArea.values()];
-  // 表示順は トップリスト → 地元で人気 → トレンド の固定順。
+  // 表示順は KIND_EMOJI の定義順。
   // 未知の種類は末尾に回す。
-  const kindOrder = ["トップリスト", "地元で人気", "トレンド"];
-  const rank = k => (kindOrder.indexOf(k) + 1 || kindOrder.length + 1);
+  const rank = k => (KINDS.indexOf(k) + 1 || KINDS.length + 1);
   for (const a of areas) a.lists.sort((x, y) => rank(x.kind) - rank(y.kind) || x.kind.localeCompare(y.kind, "ja"));
   buildTree();
 }
@@ -357,7 +362,7 @@ function resolveLat(n) {
 
 function popupHTML(a) {
   const links = a.lists.map(l =>
-    `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.kind)}</a>`).join("");
+    `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(kindLabel(l.kind))}</a>`).join("");
   return `<div class="popup"><b>${esc(a.area)}</b><small>${esc(a.loc)}</small>${links}</div>`;
 }
 
@@ -407,7 +412,7 @@ function renderNode(n, parentEl, hit, open, onlyChild) {
     count = 1;
     const ul = document.createElement("ul");
     ul.innerHTML = n.area.lists
-      .map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.kind)}</a></li>`)
+      .map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(kindLabel(l.kind))}</a></li>`)
       .join("");
     d.append(ul);
     sum.addEventListener("click", () => focusArea(n.area));
