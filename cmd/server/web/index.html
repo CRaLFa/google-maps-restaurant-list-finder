@@ -82,14 +82,21 @@
 
   /* Pico の dialog は要素自身が全画面のオーバーレイで、中身の箱は dialog > article が担う。 */
   /* 既定の余白のままだと 8 項目のフォームが縦に伸びて画面に収まらないので、ダイアログの中だけ詰める。 */
+  /* ダイアログは #side の外なので、Pico の画面幅による root font-size の拡大 (1280px 以上で 125%) をそのまま受ける。
+     サイドバーと同じく px に固定して字の大きさを揃える。
+     Pico の max-width は rem 基準で 768px 以上だと 700px まで広がるので、フォーム 1 枚に見合う幅に絞る。 */
   dialog article {
     --pico-spacing: 0.75rem;
     --pico-form-element-spacing-vertical: 0.5rem;
     --pico-typography-spacing-vertical: 0.75rem;
+    font-size: 16px; max-width: 480px;
   }
-  dialog h2 { font-size: 1.25rem; }
+  /* Pico はフォーム部品に font-size: 1rem を明示するので、上の指定が継承で届かない。 */
+  dialog input, dialog select, dialog textarea, dialog button { font-size: inherit; }
+  /* rem は root 基準なので画面幅で拡大してしまう。article の 16px に追随させるため em にする。 */
+  dialog h2 { font-size: 1.25em; }
   dialog .req::after { content: " *"; color: var(--danger); }
-  dialog .note { color: var(--muted); font-size: 0.75rem; margin: 0.75rem 0 0; }
+  dialog .note { color: var(--muted); font-size: 0.75em; margin: 0.75rem 0 0; }
   /* reCAPTCHA のバッジは全ページの右下に居座り、スマホでは地図をかなり覆ってしまう。
      隠す代わりに、Google が求める帰属表示を報告フォームに置いている。
      display: none だと実行が壊れることがあるので visibility で消す。 */
@@ -469,6 +476,9 @@ document.getElementById("f-pref").innerHTML =
   PREFS.map(p => `<option>${p}</option>`).join("");
 document.getElementById("report-btn").onclick = () => { msg.textContent = ""; dlg.showModal(); };
 document.getElementById("report-cancel").onclick = () => dlg.close();
+// dialog 自身が全画面のオーバーレイで、中身の箱は article なので、
+// クリックの対象が dialog そのものならダイアログの外を押したということ。
+dlg.onclick = e => { if (e.target === dlg) dlg.close(); };
 
 document.getElementById("report-form").addEventListener("submit", async e => {
   e.preventDefault();
