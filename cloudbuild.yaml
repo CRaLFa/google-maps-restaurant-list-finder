@@ -17,9 +17,12 @@ options:
 # デプロイのステップが内部で別のビルド (buildpacks) を回すため、既定の 10 分では足りない。
 timeout: 1800s
 
+# 検査の 3 ステップは互いに独立なので waitFor: ['-'] で並列に動かす。
+# deploy だけは 3 つの完了を待たせる。
 steps:
   - id: go
     name: golang:1.26
+    waitFor: ["-"]
     entrypoint: bash
     args:
       - -c
@@ -30,6 +33,7 @@ steps:
 
   - id: python
     name: python:3.12-slim
+    waitFor: ["-"]
     entrypoint: bash
     args:
       - -c
@@ -42,10 +46,12 @@ steps:
 
   - id: node
     name: node:22-slim
+    waitFor: ["-"]
     args: [node, cmd/server/tree_check.js]
 
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: [go, python, node]
     entrypoint: bash
     args:
       - -c
