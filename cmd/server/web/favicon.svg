@@ -3,6 +3,7 @@
   実際の字形は OS の絵文字フォント任せなので環境ごとに見た目が変わる。
   絵文字フォントは字形より広い送り幅を持つ (Noto Color Emoji は 1.275em) ため、
   x=0 で置くと左の空きの分だけ右に寄る。
-  text-anchor と dominant-baseline で中央に揃えれば送り幅に関係なく中心に来る。 -->
-  <text x="50" y="52" font-size="82" text-anchor="middle" dominant-baseline="central">🍽️</text>
+  text-anchor と dominant-baseline で中央に揃えれば送り幅に関係なく中心に来る。
+  y は絵文字フォントの縦メトリクス次第でずれるので、上下位置の調整はここの数値で行う。 -->
+  <text x="50" y="42" font-size="82" text-anchor="middle" dominant-baseline="central">🍽️</text>
 </svg>
