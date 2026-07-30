@@ -77,8 +77,14 @@
   #tree li a:hover { text-decoration: underline; }
   #tree .count { color: var(--muted); font-weight: normal; }
   #tree .empty { color: var(--muted); padding: 12px 4px; }
-  footer { padding: 16px; border-top: 1px solid var(--border); }
-  #report-btn { width: 100%; margin-bottom: 0; }
+  /* ボタンが 2 つ縦に並ぶとツリーの領域を削るので、フッターは縦の余白と字を詰める。
+     指でのタップを外さない程度 (高さ 36px 前後) には残す。 */
+  footer { padding: 12px 16px; border-top: 1px solid var(--border); }
+  footer button {
+    --pico-form-element-spacing-vertical: 0.5rem;
+    width: 100%; margin-bottom: 0; font-size: 0.9em;
+  }
+  #about-btn { margin-top: 6px; }
 
   /* Pico の dialog は要素自身が全画面のオーバーレイで、中身の箱は dialog > article が担う。 */
   /* 既定の余白のままだと 8 項目のフォームが縦に伸びて画面に収まらないので、ダイアログの中だけ詰める。 */
@@ -101,6 +107,15 @@
      隠す代わりに、Google が求める帰属表示を報告フォームに置いている。
      display: none だと実行が壊れることがあるので visibility で消す。 */
   .grecaptcha-badge { visibility: hidden; }
+  /* 説明は文章なので、フォーム 1 枚より少し広くして 1 行を読みやすくする。
+     PC では中身が画面より高くなりうるのでダイアログの中でスクロールさせる
+     (狭い画面では下の media query が全画面に伸ばす)。 */
+  #about article { max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  #about h3 { font-size: 1.05em; margin-bottom: 0.4em; }
+  #about table { font-size: 0.9em; }
+  #about td, #about th { padding: 6px 8px; }
+  /* 狭い画面だと「トップリスト」が途中で折り返されて読みにくいので、種類の列だけ折り返さない。 */
+  #about td:first-child { white-space: nowrap; }
   dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   dialog .actions button { width: auto; margin-bottom: 0; }
   #report-msg:not(:empty) { margin-top: 10px; padding: 8px; background: var(--note-bg); border-radius: var(--pico-border-radius); }
@@ -187,7 +202,10 @@
     <!-- placeholder はアクセシブルネームにならないので、aria-label を別に持たせる。 -->
     <div id="search"><input id="q" type="search" aria-label="地名で検索" placeholder="地名で検索" autocomplete="off"></div>
     <div id="tree"></div>
-    <footer><button id="report-btn">漏れているリストを報告</button></footer>
+    <footer>
+      <button id="report-btn">漏れているリストを報告</button>
+      <button id="about-btn" class="secondary outline">このページについて</button>
+    </footer>
   </div>
 </div>
 <div id="map"></div>
@@ -214,6 +232,60 @@
         <button type="submit" id="report-submit">送信</button>
       </div>
     </form>
+  </article>
+</dialog>
+
+<!-- 説明は README の同名の節と同じ内容を、読み手向けにですます調で書き直したもの。
+     片方を直したらもう片方も直すこと。 -->
+<dialog id="about">
+  <article>
+    <h2>このページについて</h2>
+    <p>Google マップ公式のエリア別レストランリスト (「渋谷: トップリスト」等) を、地図から探せるようにしたページです。
+      対象は<b>日本国内のみ</b>で、現在 <span id="about-count">-</span>を収録しています。</p>
+
+    <h3>レストランリストとは</h3>
+    <p>Google マップがエリアごとに用意している公式のおすすめレストラン一覧です。
+      ユーザーが作ったリストではなく、Google マップ上で人々が興味を持っている・お気に入りに登録している場所のデータから自動で作られます。
+      エリアごとに次の 3 種類があります。</p>
+    <table>
+      <tbody>
+        <tr><td>🏆 トップリスト</td><td>Google マップ コミュニティで常に人気の定番店。長年愛されている実績のある店</td></tr>
+        <tr><td>💎 地元で人気</td><td>近所の隠れた名店。まだあまり知られていない店</td></tr>
+        <tr><td>📢 トレンド</td><td>最近人気が急上昇した店 (毎週更新)</td></tr>
+      </tbody>
+    </table>
+    <p>Google マップアプリでエリア名を検索し、下から出てくるシートを上にスワイプすると表示されます。
+      つまり<b>エリア名を知っていないと辿り着けません</b>。</p>
+
+    <h3>何ができるか</h3>
+    <ul>
+      <li><b>地図から探す。</b> エリアのピンをタップすると、そのエリアの 3 種類のリストへのリンクが開きます。</li>
+      <li><b>地名で絞る。</b> 検索ボックスに入れると、ヒットしたエリアだけにピンとツリーが絞られます。
+        エリア名でも所在地でも引けます (「名古屋」で名古屋市内の区が出ます)。</li>
+      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。いずれの階層も北から南の順に並びます。</li>
+      <li><b>漏れを報告する。</b> 一覧に無いエリアを見つけたら、報告ボタンから知らせてください。</li>
+    </ul>
+
+    <h3>ピンの位置について</h3>
+    <p><b>ピンの位置はエリアの中心ではありません。</b>
+      Google マップの共有 URL を開いたときに地図が寄る中心座標をそのまま使っており、そのエリアの「トップリスト」の中心にあたります。
+      リストに載っている店の分布で決まる値なので、行政区画としてのエリアの中心とは数 km ずれることがあります。
+      ピンは<b>エリアを探すための目印</b>であって、正確な位置を示すものではありません。</p>
+
+    <h3>なぜ作ったか</h3>
+    <p>Google マップの「Google データ エクスポート (Takeout)」では、自分が作成したリストは取得できますが、他人が作成し自分がフォローしたリストの中身は含まれません。
+      公式のエリア別リストはまさに後者で、そのうえ Google マップアプリ内で地道に探すしかなく、全国にどれだけあるのかを一覧する手段がありません。
+      そこで共有 URL を集め、地図上に並べて探せるようにしました。</p>
+
+    <h3>注意</h3>
+    <p>集めているのは <b>Google マップ上の公式リストへの共有 URL</b> であって、リスト内のスポットの情報ではありません。
+      リストの中身は共有 URL を開いて Google マップ上でご覧ください。</p>
+    <p>収録範囲は日本国内に限っています。
+      エリアの階層は 都道府県 ▶ 市区 ▶ エリア という日本の住所の形を前提にしています。</p>
+
+    <div class="actions">
+      <button type="button" id="about-close" class="secondary">閉じる</button>
+    </div>
   </article>
 </dialog>
 
@@ -476,9 +548,23 @@ document.getElementById("f-pref").innerHTML =
   PREFS.map(p => `<option>${p}</option>`).join("");
 document.getElementById("report-btn").onclick = () => { msg.textContent = ""; dlg.showModal(); };
 document.getElementById("report-cancel").onclick = () => dlg.close();
+// ---- このページについて ----
+const aboutDlg = document.getElementById("about");
+document.getElementById("about-btn").onclick = () => {
+  // 収録件数は README のように直書きするとデータを足すたびに古くなるので、読み込んだリストから数える。
+  const lists = areas.reduce((n, a) => n + a.lists.length, 0);
+  document.getElementById("about-count").textContent = `${areas.length} エリア / ${lists} リスト`;
+  aboutDlg.showModal();
+  // showModal は最初のフォーカス可能な要素 (ここでは末尾の閉じるボタン) にフォーカスを当て、そこまでスクロールしてしまう。
+  // 説明は先頭から読ませたいので開いた直後に戻す。
+  // 2 回目以降に前回のスクロール位置が残るのも、これで一緒に消える。
+  aboutDlg.querySelector("article").scrollTop = 0;
+};
+document.getElementById("about-close").onclick = () => aboutDlg.close();
+
 // dialog 自身が全画面のオーバーレイで、中身の箱は article なので、
 // クリックの対象が dialog そのものならダイアログの外を押したということ。
-dlg.onclick = e => { if (e.target === dlg) dlg.close(); };
+for (const d of [dlg, aboutDlg]) d.onclick = e => { if (e.target === d) d.close(); };
 
 document.getElementById("report-form").addEventListener("submit", async e => {
   e.preventDefault();
