@@ -3,7 +3,7 @@
 Google マップ公式のエリア別レストランリスト (「渋谷: トップリスト」等) を地図から探せるようにした Web アプリ。
 対象は **日本国内のみ**で、海外のエリアは扱わない。
 
-**https://google-maps-restaurant-list-finder-bxnbzgrdda-an.a.run.app**
+**<https://google-maps-restaurant-list-finder-bxnbzgrdda-an.a.run.app>**
 
 現在 **191 エリア / 571 リスト**を収録している。
 
