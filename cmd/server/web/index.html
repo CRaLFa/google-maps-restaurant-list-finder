@@ -441,7 +441,11 @@ function focusArea(a) {
 function revealArea(a) {
   if (!a.el) return;
   for (let el = a.el; el; el = el.parentElement && el.parentElement.closest("details")) el.open = true;
-  a.el.scrollIntoView({ block: "center", behavior: "smooth" });
+  // スマホでシートを下げているときは、ピンのタップでシートを引き上げない。
+  // スクロールコンテナが #side なので、scrollIntoView するとシートまで一緒に上がってしまう。
+  // gap はシートを畳める余白の量で、スクロールを持たない PC では 0 になり素通りする。
+  const gap = sideEl.scrollHeight - sideEl.clientHeight;
+  if (!gap || sideEl.scrollTop > gap / 2) a.el.scrollIntoView({ block: "center", behavior: "smooth" });
   a.el.classList.add("hit");
   setTimeout(() => a.el.classList.remove("hit"), 1500);
 }
