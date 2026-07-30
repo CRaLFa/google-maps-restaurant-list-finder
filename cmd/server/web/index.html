@@ -54,6 +54,9 @@
   }
   /* Pico はフォーム部品に font-size: 1rem を明示するので、#side の指定が継承で届かない。 */
   #side input, #side button { font-size: inherit; }
+  /* #sheet はスマホでボトムシートにするためだけの箱。
+     PC では display: contents で無かったことにして、中身を #side の flex アイテムのまま扱う。 */
+  #sheet { display: contents; }
   #search { padding: 16px; border-bottom: 1px solid var(--border); }
   #search input { margin-bottom: 0; }
 
@@ -123,18 +126,45 @@
   }
 
   @media (max-width: 768px) {
-    /* 縦積みでは地図を上にしたいので、DOM 順 (リスト -> 地図) を order で入れ替える。 */
-    body { flex-direction: column; }
-    /* 50vh だと検索欄と報告ボタンの分だけツリーが 50vh 未満になり、画面の半分以上が地図になる。
-       縦長の端末ほど 50vh の実寸が大きく効くので、割合と上限の小さい方を採る。 */
-    #map { flex: none; height: min(40vh, 320px); order: -1; }
-    /* min-height: 0 が要る。
-       flex アイテムの min-height: auto は「中身の最小高さ」に解決されるため、#side の下限が
-       #search + #tree の中身ぜんぶ + footer になり、flex: 1 で縮められなくなる。
-       そうなると #tree { overflow-y: auto } の出番が無く、ページ全体がスクロールして
-       地図が画面外に流れ、報告ボタンもツリーの末尾まで送られてしまう。
-       PC 表示で起きないのは、この下限が効くのが flex の主軸だけだから (row では横方向)。 */
-    #side { flex: 1; min-width: 0; min-height: 0; border-right: none; border-top: 1px solid var(--border); }
+    body { display: block; }
+    /* 地図を全画面に敷き、その上にシートを重ねる。
+       position で全画面にしてはいけない。
+       Maps JS API が地図のコンテナに position: relative をインラインで書き込むので、
+       fixed も absolute も上書きされて高さが 0 に潰れる。
+       シートは fixed で流れの外に居るため、通常の流れのまま height: 100% で画面を覆える。 */
+    #map { height: 100%; }
+    /* #side はシートを載せるだけのスクロールコンテナ。
+       スナップ点が「隙間の上端 (最小化)」と「シートの下端 (展開)」の 2 つしかないので、
+       指のスワイプがそのまま最小化 / 展開の切り替えになる。ドラッグを拾う JS は要らない。
+       DOM では #side が #map より前にあるので、重ね順は z-index で明示する。
+       display は block に戻すこと。
+       flex のままだと隙間とシートが flex アイテムとして縮められ、合計が画面の高さに収まってしまう。
+       溢れないのでスクロールが生まれず、スナップもスワイプも効かなくなる。 */
+    #side {
+      display: block; position: fixed; inset: 0; z-index: 1;
+      min-width: 0; border: none; background: none;
+      overflow-y: scroll; overscroll-behavior-y: contain;
+      scroll-snap-type: y mandatory; scrollbar-width: none;
+      /* 隙間の部分は地図を操作させたいので、当たり判定はシート本体だけに戻す。 */
+      pointer-events: none;
+    }
+    #side::-webkit-scrollbar { display: none; }
+    /* 最小化したときにシートが覗く分 (ハンドル + 検索欄) だけ残した隙間。 */
+    #side::before { content: ""; display: block; height: calc(100% - 96px); scroll-snap-align: start; }
+    /* scroll-snap-align は end にする。
+       start だと「シートの上端が画面の上端に来る位置」に吸着しようとするが、
+       シートは画面より低いのでそこまでスクロールできず、展開側のスナップ点に届かない。 */
+    #sheet {
+      display: flex; flex-direction: column; height: 60%;
+      scroll-snap-align: end; pointer-events: auto;
+      background: var(--bg); border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0; box-shadow: 0 -4px 16px rgb(0 0 0 / 0.25);
+    }
+    /* つまんで動かせることを示すハンドル。 */
+    #sheet::before {
+      content: ""; flex: none; width: 36px; height: 4px; margin: 8px auto 4px;
+      border-radius: 2px; background: var(--muted);
+    }
     /* 指でのタップは狙いが数 px ずれるので、ツリーの行間を広げて隣の行を踏みにくくする。 */
     #tree summary { padding: 9px 0; }
     #tree li a { padding: 3px 0; }
@@ -145,11 +175,13 @@
 </head>
 <body>
 <div id="side">
-  <!-- Pico が input[type=search] に虫眼鏡アイコンを描くので、プレースホルダの 🔍 は外している。 -->
-  <!-- placeholder はアクセシブルネームにならないので、aria-label を別に持たせる。 -->
-  <div id="search"><input id="q" type="search" aria-label="地名で検索" placeholder="地名で検索" autocomplete="off"></div>
-  <div id="tree"></div>
-  <footer><button id="report-btn">漏れているリストを報告</button></footer>
+  <div id="sheet">
+    <!-- Pico が input[type=search] に虫眼鏡アイコンを描くので、プレースホルダの 🔍 は外している。 -->
+    <!-- placeholder はアクセシブルネームにならないので、aria-label を別に持たせる。 -->
+    <div id="search"><input id="q" type="search" aria-label="地名で検索" placeholder="地名で検索" autocomplete="off"></div>
+    <div id="tree"></div>
+    <footer><button id="report-btn">漏れているリストを報告</button></footer>
+  </div>
 </div>
 <div id="map"></div>
 
@@ -182,6 +214,10 @@
 const PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
 
 const treeEl = document.getElementById("tree");
+const sideEl = document.getElementById("side");
+// スマホ表示のシートは初期スクロール位置 (0) が最小化側なので、開いた状態から始める。
+// PC では #side にスクロールが無いのでどちらも空振りする。
+sideEl.scrollTop = sideEl.scrollHeight;
 let map, infoWindow;
 let areas = [];   // { key, area, loc, pref, lat, lng, lists[], marker, el }
 let roots = [];   // ツリーの根 (都道府県)。ノードは { path, label, lat, area, children[] }
@@ -229,6 +265,14 @@ async function start(cfg) {
     fullscreenControl: false,
   });
   infoWindow = new InfoWindow();
+  // スマホ表示ではシートが画面の下側を覆うので、地図の中心がその裏に隠れて北日本しか見えない。
+  // 隠れる分の半分だけ中心を南にずらし、見えている部分の真ん中に日本が来るようにする。
+  // panBy は地図が一度描かれるまで効かないので idle を待つ。
+  // PC の #sheet は display: contents で箱を持たず height が 0 になるので、ここは素通りする。
+  google.maps.event.addListenerOnce(map, "idle", () => {
+    const sheet = document.getElementById("sheet").getBoundingClientRect();
+    if (sheet.height) map.panBy(0, (innerHeight - sheet.top) / 2);
+  });
 
   buildAreas(await listsP);
   for (const a of areas) {
@@ -381,6 +425,9 @@ function renderNode(n, parentEl, hit, open, onlyChild) {
 // ツリー項目のクリック -> 地図をそのエリアへ寄せて吹き出しを開く。
 function focusArea(a) {
   if (!map || !a.marker) return;
+  // スマホ表示では地図の中心がシートの裏に隠れる。
+  // ツリーを選んだ時点で見たいのは地図なので、シートを最小化して吹き出しを表に出す。
+  sideEl.scrollTo({ top: 0, behavior: "smooth" });
   map.setCenter({ lat: a.lat, lng: a.lng });
   if (map.getZoom() < 11) map.setZoom(11);
   infoWindow.setContent(popupHTML(a));
@@ -388,8 +435,9 @@ function focusArea(a) {
 }
 
 // ピンのクリック -> ツリー側の該当項目を開いて見える位置までスクロールする。
-// scrollIntoView が動かすのは祖先のスクロールボックスだけで、今はどの画面幅でも #tree しか該当しない。
-// スマホ表示でもページ全体は伸びないので、地図と吹き出しはその場に留まる。
+// scrollIntoView が動かすのは祖先のスクロールボックスだけなので、PC では #tree だけが動く。
+// スマホ表示ではシートを載せている #side も祖先のスクロールボックスなので、
+// 最小化していたシートがここで一緒に開く。ページ全体はどちらでも伸びない。
 function revealArea(a) {
   if (!a.el) return;
   for (let el = a.el; el; el = el.parentElement && el.parentElement.closest("details")) el.open = true;
