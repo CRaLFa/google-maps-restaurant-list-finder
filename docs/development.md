@@ -216,6 +216,18 @@ DEV=... SEED=data/seed.tsv MAX=2 python3 scripts/collect/fetch_missing_lists.py 
 新規エリアには必ず渡すこと。
 Firestore へ 1 件ずつ書くので中断しても再開できる。
 
+**1〜2 エリアだけ足すときは `seed.tsv` を丸ごと渡さないこと。**
+シードの行はリスト無しと確認済みのものも記録として残してあり、全部渡すと数百エリアを走査し直して何時間もかかる。
+`seed.tsv` には記録として追記したうえで、実行には対象の行だけを書いた一時ファイルを渡す。
+
+```bash
+printf '宇治市\n' > /tmp/seed-one.tsv
+DEV=... SEED=/tmp/seed-one.tsv python3 scripts/collect/fetch_missing_lists.py
+```
+
+このとき、既に 1 件以上あるエリアの欠けている種別 (`代官山町: トレンド` 等) は一時ファイルと無関係に毎回対象へ入る。
+Google 側にリストが無いことが確認済みのものなので、`FAIL カードが見つからない` が出ても無視してよい。
+
 **4. 座標を取る。**
 
 ```bash
@@ -238,6 +250,15 @@ go run ./cmd/server   # http://localhost:8080
 
 `GET /api/lists` はプロセス内に 5 分キャッシュするので、起動済みのサーバではすぐに反映されない。
 本番 (Cloud Run) も同じで、デプロイし直さなくても最大 5 分で出てくる。
+
+**6. README の件数を更新する。**
+[README](../README.md) の冒頭に「現在 N エリア / M リスト」と書いてあるので、増えた分を反映する。
+実際の値は次で確認できる。
+
+```bash
+python3 -c "import sys; sys.path.insert(0,'scripts'); import store; \
+ls=store.all_lists(); print(len(ls), len({(r['name'].rsplit(': ',1)[0], r['loc']) for r in ls}))"
+```
 
 ### 前提
 
