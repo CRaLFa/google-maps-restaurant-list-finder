@@ -123,7 +123,11 @@
   #report-msg:not(:empty) { margin-top: 10px; padding: 8px; background: var(--note-bg); border-radius: var(--pico-border-radius); }
   /* 吹き出しの中身はサイドバーのツリーと同じ項目なので、字の大きさも #side に揃えて 16px に固定する。
      rem のままだと Pico の画面幅スケーリングに乗ってしまい、InfoWindow の吹き出しの幅に収まらず右端で切れる。 */
-  .popup { font-size: 16px; }
+  /* 吹き出しの余白は Google が .gm-style-iw-c に持たせているが、クラスの padding は左の 12px だけで、
+     上下と右はインラインスタイルの padding-top / padding-bottom / padding-inline-end: 0 で潰される。
+     インラインには CSS で勝てないので、足りない分は中身の .popup 側で持つ。
+     上は閉じるボタンの行が空きを作るので、右と下だけでよい。 */
+  .popup { font-size: 16px; padding: 0 12px 12px 0; }
   .popup b { display: block; margin-bottom: 2px; }
   /* 所在地は補足情報だが、--muted だと地名が読み取りづらい。本文と同じ濃さにして小さい字だけで区別する。 */
   .popup small { color: var(--fg); }
@@ -192,8 +196,10 @@
     /* 指でのタップは狙いが数 px ずれるので、ツリーの行間を広げて隣の行を踏みにくくする。 */
     #tree summary { padding: 9px 0; }
     #tree li a { padding: 3px 0; }
-    /* 狭い画面ではダイアログを全画面にする。箱は dialog そのものではなく article なので、そちらを伸ばす。 */
-    dialog > article { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0; }
+    /* 狭い画面ではダイアログを全画面にする。箱は dialog そのものではなく article なので、そちらを伸ばす。
+       #about article は ID 指定なので、要素名だけのセレクタでは max-width / max-height を上書きできる詳細度がない。
+       こちらも ID で書いて勝たせる。 */
+    #report > article, #about > article { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0; }
     /* iOS Safari は 16px 未満の入力欄にフォーカスすると画面を勝手に拡大するので、スマホでだけ 16px に戻す。 */
     dialog input, dialog select, dialog textarea { font-size: 16px; }
   }
