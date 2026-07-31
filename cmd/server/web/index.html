@@ -357,11 +357,7 @@ async function start(cfg) {
   // スマホ表示ではシートが画面の下側を覆うので、地図の中心がその裏に隠れて北日本しか見えない。
   // 隠れる分の半分だけ中心を南にずらし、見えている部分の真ん中に日本が来るようにする。
   // panBy は地図が一度描かれるまで効かないので idle を待つ。
-  // PC の #sheet は display: contents で箱を持たず height が 0 になるので、ここは素通りする。
-  google.maps.event.addListenerOnce(map, "idle", () => {
-    const sheet = document.getElementById("sheet").getBoundingClientRect();
-    if (sheet.height) map.panBy(0, (innerHeight - sheet.top) / 2);
-  });
+  google.maps.event.addListenerOnce(map, "idle", () => map.panBy(0, sheetOffsetY()));
 
   buildAreas(await listsP);
   for (const a of areas) {
@@ -516,14 +512,23 @@ function renderNode(n, parentEl, hit, open, onlyChild) {
   return count;
 }
 
+// 地図の中心から下方向へのずらし量 (px)。
+// スマホ表示では画面の下側をシートが覆うので、この分だけ南にずらすと
+// 地図の見えている部分 (シートより上) の真ん中に来る。
+// PC の #sheet は display: contents で箱を持たず height が 0 になるので 0 を返す。
+function sheetOffsetY() {
+  const sheet = document.getElementById("sheet").getBoundingClientRect();
+  return sheet.height ? (innerHeight - sheet.top) / 2 : 0;
+}
+
 // ツリー項目のクリック -> 地図をそのエリアへ寄せて吹き出しを開く。
 function focusArea(a) {
   if (!map || !a.marker) return;
-  // スマホ表示では地図の中心がシートの裏に隠れる。
-  // ツリーを選んだ時点で見たいのは地図なので、シートを最小化して吹き出しを表に出す。
-  sideEl.scrollTo({ top: 0, behavior: "smooth" });
+  // シートは畳まない。畳むとツリーを続けて辿れなくなる。
+  // 代わりに、ピンがシートより上の見えている領域の中心に来るようずらす。
   map.setCenter({ lat: a.lat, lng: a.lng });
   if (map.getZoom() < 11) map.setZoom(11);
+  map.panBy(0, sheetOffsetY());
   infoWindow.setContent(popupHTML(a));
   infoWindow.open({ map, anchor: a.marker });
 }
