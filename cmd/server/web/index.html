@@ -361,6 +361,10 @@ async function start(cfg) {
 
   buildAreas(await listsP);
   for (const a of areas) {
+    // 収集した直後で fetch_coords.py をまだ流していないエリアは座標を持たない。
+    // 座標なしで AdvancedMarkerElement を作ると例外で以降のピンと render() が丸ごと飛ぶので、
+    // ピンは諦めてツリーにだけ出す (marker が無いことは絞り込み・revealArea 側で織り込み済み)。
+    if (!Number.isFinite(a.lat) || !Number.isFinite(a.lng)) continue;
     a.marker = new AdvancedMarkerElement({ map, position: { lat: a.lat, lng: a.lng }, title: a.area });
     a.marker.addListener("click", () => {
       infoWindow.setContent(popupHTML(a));
@@ -433,7 +437,9 @@ function buildTree() {
 }
 
 function resolveLat(n) {
-  if (n.area) n.lat = n.area.lat;
+  // 座標なしのエリアは -Infinity のままにする。undefined を混ぜると Math.max が NaN になり、
+  // その枝から上の並び順が全部壊れる。
+  if (n.area && Number.isFinite(n.area.lat)) n.lat = n.area.lat;
   for (const c of n.children) n.lat = Math.max(n.lat, resolveLat(c));
   n.children.sort((x, y) => y.lat - x.lat);
   return n.lat;

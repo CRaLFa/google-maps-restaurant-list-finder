@@ -70,6 +70,15 @@ eq(badOrder.length, 0, `リストの並び順が崩れているエリア (例: $
 eq(roots[0].label, "北海道", "最北の都道府県");
 eq(roots.at(-1).label, "沖縄県", "最南の都道府県");
 
+// 収集直後で座標がまだ無いエリアが混じっても、並び順が NaN 汚染されないこと。
+// (混じると resolveLat の Math.max が NaN になり、その枝から上の並びが全部壊れた)
+ctx.buildAreas([...rows, { name: "新エリア: トップリスト", area: "新エリア", kind: "トップリスト",
+                           loc: "三重県", pref: "三重県", url: "https://example.com/x" }]);
+const roots2 = ctx.getRoots();
+eq(roots2[0].label, "北海道", "座標なしエリア混在時の最北の都道府県");
+eq(roots2.at(-1).label, "沖縄県", "座標なしエリア混在時の最南の都道府県");
+eq(roots2.filter(r => Number.isNaN(r.lat)).length, 0, "代表緯度が NaN になった都道府県");
+
 if (fail.length) {
   console.error("NG\n" + fail.join("\n"));
   process.exit(1);
