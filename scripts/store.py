@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 from google.cloud import firestore
 
 LISTS = "lists"
-REPORTS = "reports"
 
 # 所在地の先頭から都道府県を切り出す。
 # 「県」は 2〜3 文字 (神奈川県・和歌山県・鹿児島県) なので最短一致にする。
@@ -67,7 +66,7 @@ def doc_id(loc, name):
 
 
 def build(name, url, loc, lat=None, lng=None):
-    """TSV 由来の値から lists のドキュメント本体を組み立てる。"""
+    """収集した値から lists のドキュメント本体を組み立てる。"""
     area, _, kind = name.partition(": ")
     doc = {
         "name": name,
@@ -110,7 +109,7 @@ def upsert(docs, batch_size=400):
 
 
 def all_lists():
-    """lists 全件を辞書のリストで返す。571 件程度なので一括で読む。"""
+    """lists 全件を辞書のリストで返す。数百件なので一括で読む。"""
     return [d.to_dict() | {"id": d.id} for d in db().collection(LISTS).stream()]
 
 

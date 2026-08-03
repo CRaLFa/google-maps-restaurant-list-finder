@@ -174,7 +174,7 @@ func (s *server) handleLists(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// lists 全件をプロセス内にキャッシュする。571 件で数十 KB なのでページングしない。
+// lists 全件をプロセス内にキャッシュする。全件で数十 KB なのでページングしない。
 func (s *server) cachedLists(ctx context.Context) ([]byte, string, error) {
 	s.lists.mu.Lock()
 	defer s.lists.mu.Unlock()

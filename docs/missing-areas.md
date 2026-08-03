@@ -3,7 +3,7 @@
 2026-07-26 時点、168 エリア (502 行) だった頃に洗い出した調査記録。
 以下の項目は [`seed.tsv`](../data/seed.tsv) にシードとして反映し、
 [`fetch_missing_lists.py`](../scripts/collect/fetch_missing_lists.py) で走査済み。
-現在の到達状況は 191 エリア (571 行、詳細は [README](../README.md) 参照)。
+現在の到達状況は [README](../README.md) の冒頭を参照。
 
 ## 1. 東京 23 区 (2 区欠落) — 調査済み・確定
 

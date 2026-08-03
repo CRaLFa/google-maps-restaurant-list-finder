@@ -147,8 +147,7 @@ AMBIGUOUS = {w for w in ward_names
 ward_loc = {}
 for _city, _wards in WARDS.items():
     for _w in _wards:
-        # 旧形式 (都道府県なし) と新形式の両方を受け付けて移行できるようにする。
-        aliases = {_city, full(_city)}
+        aliases = {full(_city)}
         # 曖昧な区に空の別名を張ると市どうしで上書きし合って誤った所在地になる。
         # 手掛かり無しでは引けないようにしておく。
         if _w not in AMBIGUOUS:
@@ -190,13 +189,12 @@ if __name__ == "__main__":
     assert resolve("清水区") == "静岡県静岡市"     # 同名でない区は hint 不要
     assert resolve("知らないエリア") is None
 
-    # 同名の区は hint が無いと決まらない。旧形式の市名も手掛かりとして受ける。
+    # 同名の区は hint (都道府県から始まる所在地) が無いと決まらない。
     assert "北区" in AMBIGUOUS and "中央区" in AMBIGUOUS
     assert resolve("北区") is None
     assert resolve("北区", "東京都") == "東京都"
-    assert resolve("北区", "京都市") == "京都府京都市"
     assert resolve("北区", "京都府京都市") == "京都府京都市"
-    assert resolve("中央区", "大阪市") == "大阪府大阪市"
+    assert resolve("中央区", "大阪府大阪市") == "大阪府大阪市"
     # 「中区」は WARDS 上は名古屋市だけなので曖昧ではない (横浜市中区は野毛町の親としてのみ登場)。
     assert "中区" not in AMBIGUOUS and resolve("中区") == "愛知県名古屋市"
 
