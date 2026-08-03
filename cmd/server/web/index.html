@@ -513,10 +513,25 @@ function renderNode(n, parentEl, hit, open, onlyChild) {
   for (const c of n.children) count += renderNode(c, d, hit, open, n.children.length === 1 && !n.area);
   if (!count) return 0;
 
+  // 自分にリストが無く配下のエリアも 1 件だけなら、このノードを開いた瞬間にリンクまで一気に出そろう。
+  // 選ぶ余地が無い 1 件なので、開いたのに合わせて地図もそのピンへ寄せる。
+  // 最初から開いているノード (onlyChild・検索中) は「開く」操作が無いので対象外。
+  if (!n.area && count === 1 && !d.open) {
+    const [only] = hitAreas(n, hit);
+    d.addEventListener("toggle", () => { if (d.open) focusArea(only); });
+  }
+
   // 件数は子を持つノード (都道府県・市区) にだけ出す。末端に (1) と付けても情報がない。
   sum.innerHTML = esc(n.label) + (n.children.length ? ` <span class="count">(${count})</span>` : "");
   parentEl.append(d);
   return count;
+}
+
+// n とその子孫のうち、絞り込みに残ったエリアを集める。
+function hitAreas(n, hit, out = []) {
+  if (n.area && hit(n.area)) out.push(n.area);
+  for (const c of n.children) hitAreas(c, hit, out);
+  return out;
 }
 
 // 地図の中心から下方向へのずらし量 (px)。
