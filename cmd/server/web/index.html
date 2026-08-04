@@ -56,7 +56,7 @@
   #side input, #side button { font-size: inherit; }
   /* #sheet はスマホでボトムシートにするためだけの箱。
      PC では display: contents で無かったことにして、中身を #side の flex アイテムのまま扱う。 */
-  #sheet { display: contents; }
+  #sheet, #scroll { display: contents; }
   #search { padding: 16px; border-bottom: 1px solid var(--border); }
   #search input { margin-bottom: 0; }
 
@@ -193,6 +193,13 @@
       content: ""; flex: none; width: 36px; height: 4px; margin: 8px auto 4px;
       border-radius: 2px; background: var(--muted);
     }
+    /* シートの高さは画面の 60% しかないので、常時見える必要のあるものだけを残してツリーに回す。
+       フッターのボタンはシートの下端に固定せず、ツリーと同じスクロールに流して末尾へ送る。
+       ボタン 2 つ分 (約 100px) がツリーの高さになり、指で辿れる行数が 3 割ほど増える。
+       ツリーを畳んだ状態だと報告ボタンまで数画面スクロールすることになるが、
+       常用するのは検索とツリーで、報告とこのページについては一度押せば済むもの。 */
+    #scroll { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+    #tree { flex: none; overflow-y: visible; }
     /* 指でのタップは狙いが数 px ずれるので、ツリーの行間を広げて隣の行を踏みにくくする。 */
     #tree summary { padding: 9px 0; }
     #tree li a { padding: 3px 0; }
@@ -211,11 +218,15 @@
     <!-- Pico が input[type=search] に虫眼鏡アイコンを描くので、プレースホルダの 🔍 は外している。 -->
     <!-- placeholder はアクセシブルネームにならないので、aria-label を別に持たせる。 -->
     <div id="search"><input id="q" type="search" aria-label="地名で検索" placeholder="地名で検索" autocomplete="off"></div>
-    <div id="tree"></div>
-    <footer>
-      <button id="report-btn">漏れているリストを報告</button>
-      <button id="about-btn" class="secondary outline">このページについて</button>
-    </footer>
+    <!-- #scroll はスマホでツリーとフッターを 1 つのスクロールにまとめるためだけの箱。
+         PC では display: contents で無かったことにして、中身を #side の flex アイテムのまま扱う。 -->
+    <div id="scroll">
+      <div id="tree"></div>
+      <footer>
+        <button id="report-btn">漏れているリストを報告</button>
+        <button id="about-btn" class="secondary outline">このページについて</button>
+      </footer>
+    </div>
   </div>
 </div>
 <div id="map"></div>
