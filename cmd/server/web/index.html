@@ -56,7 +56,7 @@
   #side input, #side button { font-size: inherit; }
   /* #sheet はスマホでボトムシートにするためだけの箱。
      PC では display: contents で無かったことにして、中身を #side の flex アイテムのまま扱う。 */
-  #sheet { display: contents; }
+  #sheet, #scroll { display: contents; }
   #search { padding: 16px; border-bottom: 1px solid var(--border); }
   #search input { margin-bottom: 0; }
 
@@ -193,6 +193,13 @@
       content: ""; flex: none; width: 36px; height: 4px; margin: 8px auto 4px;
       border-radius: 2px; background: var(--muted);
     }
+    /* シートの高さは画面の 60% しかないので、常時見える必要のあるものだけを残してツリーに回す。
+       フッターのボタンはシートの下端に固定せず、ツリーと同じスクロールに流して末尾へ送る。
+       ボタン 2 つ分 (約 100px) がツリーの高さになり、指で辿れる行数が 3 割ほど増える。
+       ツリーを畳んだ状態だと報告ボタンまで数画面スクロールすることになるが、
+       常用するのは検索とツリーで、報告とこのページについては一度押せば済むもの。 */
+    #scroll { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+    #tree { flex: none; overflow-y: visible; }
     /* 指でのタップは狙いが数 px ずれるので、ツリーの行間を広げて隣の行を踏みにくくする。 */
     #tree summary { padding: 9px 0; }
     #tree li a { padding: 3px 0; }
@@ -211,11 +218,15 @@
     <!-- Pico が input[type=search] に虫眼鏡アイコンを描くので、プレースホルダの 🔍 は外している。 -->
     <!-- placeholder はアクセシブルネームにならないので、aria-label を別に持たせる。 -->
     <div id="search"><input id="q" type="search" aria-label="地名で検索" placeholder="地名で検索" autocomplete="off"></div>
-    <div id="tree"></div>
-    <footer>
-      <button id="report-btn">漏れているリストを報告</button>
-      <button id="about-btn" class="secondary outline">このページについて</button>
-    </footer>
+    <!-- #scroll はスマホでツリーとフッターを 1 つのスクロールにまとめるためだけの箱。
+         PC では display: contents で無かったことにして、中身を #side の flex アイテムのまま扱う。 -->
+    <div id="scroll">
+      <div id="tree"></div>
+      <footer>
+        <button id="report-btn">漏れているリストを報告</button>
+        <button id="about-btn" class="secondary outline">このページについて</button>
+      </footer>
+    </div>
   </div>
 </div>
 <div id="map"></div>
@@ -273,7 +284,7 @@
       <li><b>地図から探す。</b> エリアのピンをタップすると、そのエリアの 3 種類のリストへのリンクが開きます。</li>
       <li><b>地名で絞る。</b> 検索ボックスに入れると、ヒットしたエリアだけにピンとツリーが絞られます。
         エリア名でも所在地でも引けます (「名古屋」で名古屋市内の区が出ます)。</li>
-      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。いずれの階層も北から南の順に並びます。</li>
+      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。都道府県と市区町村は全国地方公共団体コード順、繁華街などのエリアは北から南の順に並びます。</li>
       <li><b>漏れを報告する。</b> 一覧に無いエリアを見つけたら、報告ボタンから知らせてください。</li>
     </ul>
 
@@ -301,8 +312,6 @@
 </dialog>
 
 <script>
-const PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
-
 // リストの種類ごとの絵文字。
 // 定義順がそのまま表示順 (トップリスト → 地元で人気 → トレンド) になる。
 const KIND_EMOJI = { "トップリスト": "🏆", "地元で人気": "💎", "トレンド": "📢" };
@@ -317,6 +326,7 @@ sideEl.scrollTop = sideEl.scrollHeight;
 let map, infoWindow;
 let areas = [];   // { key, area, loc, pref, lat, lng, lists[], marker, el }
 let roots = [];   // ツリーの根 (都道府県)。ノードは { path, label, lat, area, children[] }
+let muniRank = {};   // 都道府県・市区町村のフルパス -> 兄弟の中での並び順 (/api/lists が返す)
 let siteKey = "";
 
 // リストの取得と Maps API のロードは互いに独立なので並行して走らせる。
@@ -324,6 +334,7 @@ const listsP = fetch("/api/lists").then(r => r.json());
 
 fetch("/api/config").then(r => r.json()).then(cfg => {
   siteKey = cfg.recaptchaSiteKey;
+  fillPrefOptions(cfg.prefectures);
   if (siteKey) {
     const s = document.createElement("script");
     s.src = "https://www.google.com/recaptcha/enterprise.js?render=" + encodeURIComponent(siteKey);
@@ -333,7 +344,7 @@ fetch("/api/config").then(r => r.json()).then(cfg => {
     document.getElementById("map").innerHTML =
       '<p class="error">Google マップの API キーが未設定です。'
       + 'サーバの MAPS_API_KEY を設定してください。</p>';
-    listsP.then(rows => { buildAreas(rows); render(); });
+    listsP.then(data => { buildAreas(data); render(); });
     return;
   }
   window.initMap = () => start(cfg);
@@ -383,9 +394,10 @@ async function start(cfg) {
 }
 
 // エリア (エリア名 + 所在地) 単位にまとめる。同名エリアが市を跨ぐので所在地込みで束ねる。
-function buildAreas(rows) {
+function buildAreas(data) {
+  muniRank = data.order || {};
   const byArea = new Map();
-  for (const r of rows) {
+  for (const r of data.lists) {
     const key = r.loc + "|" + r.area;
     if (!byArea.has(key)) {
       byArea.set(key, { key, area: r.area, loc: r.loc, pref: r.pref, lat: r.lat, lng: r.lng, lists: [] });
@@ -437,18 +449,22 @@ function buildTree() {
     nodes.get(parent).children.push(n);
   }
 
-  // 代表緯度 (自身と子孫の最大緯度) の降順、つまり北から南に並べる。
-  // 座標があるので JIS 都道府県コードの配列を持たずに済む。
+  // 代表緯度 (自身と子孫の最大緯度) を決めてから並べる。
   for (const n of roots) resolveLat(n);
-  roots.sort((x, y) => y.lat - x.lat);
+  roots.sort(byOrder);
 }
+
+// 都道府県・市区町村は全国地方公共団体コード順、繁華街などのエリアは代表緯度の降順 (北から南)。
+// muniRank に無いノードは順位が 1e9 で揃うので差が 0 になり、緯度の比較に落ちる。
+const byOrder = (x, y) =>
+  (muniRank[x.path] ?? 1e9) - (muniRank[y.path] ?? 1e9) || y.lat - x.lat;
 
 function resolveLat(n) {
   // 座標なしのエリアは -Infinity のままにする。undefined を混ぜると Math.max が NaN になり、
   // その枝から上の並び順が全部壊れる。
   if (n.area && Number.isFinite(n.area.lat)) n.lat = n.area.lat;
   for (const c of n.children) n.lat = Math.max(n.lat, resolveLat(c));
-  n.children.sort((x, y) => y.lat - x.lat);
+  n.children.sort(byOrder);
   return n.lat;
 }
 
@@ -580,9 +596,13 @@ document.getElementById("q").addEventListener("input", () => {
 // ---- 報告フォーム ----
 const dlg = document.getElementById("report");
 const msg = document.getElementById("report-msg");
-document.getElementById("f-pref").innerHTML =
-  '<option value="">選択してください</option>' +
-  PREFS.map(p => `<option>${p}</option>`).join("");
+// 都道府県の一覧はサーバの muni-order.txt が唯一の持ち場なので、/api/config から受け取って埋める。
+// 関数宣言は巻き上げられるので、上の /api/config のコールバックから呼んで問題ない。
+function fillPrefOptions(prefs) {
+  document.getElementById("f-pref").innerHTML =
+    '<option value="">選択してください</option>' +
+    prefs.map(p => `<option>${esc(p)}</option>`).join("");
+}
 document.getElementById("report-btn").onclick = () => { msg.textContent = ""; dlg.showModal(); };
 document.getElementById("report-cancel").onclick = () => dlg.close();
 // ---- このページについて ----
