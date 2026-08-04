@@ -13,15 +13,14 @@ const ctx = vm.createContext({
   setTimeout, clearTimeout, console,
 });
 // let 宣言は vm のグローバルに載らないので、取り出す口を足しておく。
-vm.runInContext(src + "\nglobalThis.getRoots = () => roots;\nglobalThis.getAreas = () => areas;"
-  + "\nglobalThis.getPrefs = () => PREFS;", ctx);
+vm.runInContext(src + "\nglobalThis.getRoots = () => roots;\nglobalThis.getAreas = () => areas;", ctx);
 
 // サーバの muniRank と同じ表を組む。こちらは絞り込まず全件を渡す。
 const order = {};
-ctx.getPrefs().forEach((p, i) => { order[p] = i; });
-fs.readFileSync("cmd/server/muni-order.txt", "utf8").trim().split("\n").forEach((p, i) => {
-  if (!(p in order)) order[p] = 47 + i;
-});
+for (const line of fs.readFileSync("cmd/server/muni-order.txt", "utf8").trim().split("\n")) {
+  const [code, path] = line.split("\t");
+  if (!(path in order)) order[path] = +code;   // 同名パスはコードの小さい方を採る
+}
 
 // data/archive/ の TSV から /api/lists 相当の行を組み立てる。
 // 正データは Firestore だが、こちらは移行時点で凍結されているぶん

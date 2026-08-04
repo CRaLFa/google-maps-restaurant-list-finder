@@ -10,12 +10,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,10 +33,11 @@ import (
 //go:embed all:web
 var webFS embed.FS
 
-// 全国地方公共団体コード順に並べた「都道府県 + 市区町村」のフルパス。
+// 全国地方公共団体コードと「都道府県 + 市区町村」のフルパスを、コード順にタブ区切りで並べたもの。
 // 出典: 総務省「都道府県コード及び市区町村コード」 (https://www.soumu.go.jp/denshijiti/code.html) の Excel。
-// コードの数値は持たず行の順序だけを使うので、市町村合併があったら Excel から作り直すこと。
-// 39KB あるが、ブラウザに送るのはリストが実在するパスの分だけ (cachedLists の order)。
+// 都道府県名もツリーの並び順もここだけから作るので、静的な地名データの持ち場はこのファイル 1 つ。
+// 市町村合併があったら Excel から作り直すこと。
+// 54KB あるが、ブラウザに送るのはリストが実在するパスの分だけ (cachedLists の order)。
 //
 //go:embed muni-order.txt
 var muniOrderData string
@@ -50,28 +54,32 @@ var maxLen = map[string]int{
 	"area": 50, "pref": 10, "shareUrl": 300, "comment": 1000, "contact": 200,
 }
 
-var prefectures = map[string]bool{}
+// 47 都道府県。コード順。報告フォームの選択肢と検証に使う。
+var prefectures []string
 
-// ツリーのノードのフルパス -> 兄弟の中での並び順。
-// 都道府県も市区町村も同じ表に入れるが、比べるのは兄弟どうしだけなので値は通し番号でなくてよい。
+// ツリーのノードのフルパス -> 全国地方公共団体コード。
+// 比べるのは兄弟どうしだけなので、コードをそのまま並び順に使える。
 var muniRank = map[string]int{}
 
 func init() {
-	prefs := strings.Fields(`北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県
-		茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県
-		山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県
-		和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県
-		佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県`)
-	for i, p := range prefs {
-		prefectures[p] = true
-		muniRank[p] = i
-	}
-	for i, p := range strings.Split(strings.TrimSpace(muniOrderData), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(muniOrderData), "\n") {
+		code, path, _ := strings.Cut(line, "\t")
+		n, err := strconv.Atoi(code)
+		if err != nil {
+			panic("muni-order.txt の団体コードが数値でない: " + line)
+		}
+		// 都道府県は市区町村コード (5 桁のうち下 3 桁) が 000 の行。
+		if code[2:5] == "000" {
+			prefectures = append(prefectures, path)
+		}
 		// 北海道泊村のように同名の自治体が同じ都道府県に 2 つあるとパスが衝突する。
 		// どちらもフルパスでは見分けられないので、コードの小さい方を採る。
-		if _, dup := muniRank[p]; !dup {
-			muniRank[p] = len(prefs) + i
+		if _, dup := muniRank[path]; !dup {
+			muniRank[path] = n
 		}
+	}
+	if len(prefectures) != 47 {
+		panic(fmt.Sprintf("muni-order.txt から取れた都道府県が %d 件", len(prefectures)))
 	}
 }
 
@@ -170,11 +178,13 @@ func main() {
 // フロントに渡す公開設定。
 // reCAPTCHA のサイトキーも Maps の API キーもクライアントに出る前提の値なのでそのまま返す。
 // Maps の API キーは GCP コンソール側で HTTP リファラ制限をかけて守ること。
+// 報告フォームの都道府県の選択肢もここで配り、フロントに同じ一覧を持たせない。
 func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]string{
+	writeJSON(w, map[string]any{
 		"recaptchaSiteKey": s.siteKey,
 		"mapsApiKey":       s.mapsKey,
 		"mapId":            s.mapID,
+		"prefectures":      prefectures,
 	})
 }
 
@@ -311,7 +321,7 @@ func validate(req *reportReq) string {
 	if req.Area == "" {
 		return "エリア名は必須です"
 	}
-	if !prefectures[req.Pref] {
+	if !slices.Contains(prefectures, req.Pref) {
 		return "都道府県が不正です"
 	}
 	for name, v := range map[string]string{
