@@ -30,6 +30,14 @@ import (
 //go:embed all:web
 var webFS embed.FS
 
+// 全国地方公共団体コード順に並べた「都道府県 + 市区町村」のフルパス。
+// 出典: 総務省「都道府県コード及び市区町村コード」 (https://www.soumu.go.jp/denshijiti/code.html) の Excel。
+// コードの数値は持たず行の順序だけを使うので、市町村合併があったら Excel から作り直すこと。
+// 39KB あるが、ブラウザに送るのはリストが実在するパスの分だけ (cachedLists の order)。
+//
+//go:embed muni-order.txt
+var muniOrderData string
+
 const (
 	listsTTL     = 5 * time.Minute // lists のプロセス内キャッシュの寿命
 	reportWindow = time.Hour       // レート制限の集計窓
@@ -44,13 +52,26 @@ var maxLen = map[string]int{
 
 var prefectures = map[string]bool{}
 
+// ツリーのノードのフルパス -> 兄弟の中での並び順。
+// 都道府県も市区町村も同じ表に入れるが、比べるのは兄弟どうしだけなので値は通し番号でなくてよい。
+var muniRank = map[string]int{}
+
 func init() {
-	for p := range strings.FieldsSeq(`北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県
+	prefs := strings.Fields(`北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県
 		茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県
 		山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県
 		和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県
-		佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県`) {
+		佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県`)
+	for i, p := range prefs {
 		prefectures[p] = true
+		muniRank[p] = i
+	}
+	for i, p := range strings.Split(strings.TrimSpace(muniOrderData), "\n") {
+		// 北海道泊村のように同名の自治体が同じ都道府県に 2 つあるとパスが衝突する。
+		// どちらもフルパスでは見分けられないので、コードの小さい方を採る。
+		if _, dup := muniRank[p]; !dup {
+			muniRank[p] = len(prefs) + i
+		}
 	}
 }
 
@@ -182,6 +203,7 @@ func (s *server) cachedLists(ctx context.Context) ([]byte, string, error) {
 		return s.lists.body, s.lists.etag, nil
 	}
 	out := []map[string]any{}
+	order := map[string]int{}
 	it := s.fs.Collection("lists").Documents(ctx)
 	defer it.Stop()
 	for {
@@ -196,14 +218,32 @@ func (s *server) cachedLists(ctx context.Context) ([]byte, string, error) {
 		// updatedAt はフロントで使わないので落として転送量を削る。
 		delete(d, "updatedAt")
 		out = append(out, d)
+		loc, _ := d["loc"].(string)
+		area, _ := d["area"].(string)
+		collectRanks(order, loc+area)
 	}
-	body, err := json.Marshal(out)
+	body, err := json.Marshal(map[string]any{"lists": out, "order": order})
 	if err != nil {
 		return nil, "", err
 	}
 	sum := sha256.Sum256(body)
 	s.lists.body, s.lists.etag, s.lists.at = body, `"`+hex.EncodeToString(sum[:8])+`"`, time.Now()
 	return s.lists.body, s.lists.etag, nil
+}
+
+// path とその全階層のうち、都道府県・市区町村に当たるものの並び順を order に集める。
+// path (所在地 + エリア名) は「都道府県 + 市 + 区 + エリア」の連結なので、
+// 前方から 1 文字ずつ切り出して表を引けば、リストを持たない中間ノードの分まで拾える。
+// 表に無い繁華街などのエリアは載らず、フロント側で従来どおり緯度順に並ぶ。
+func collectRanks(order map[string]int, path string) {
+	for i := range path {
+		if r, ok := muniRank[path[:i]]; ok {
+			order[path[:i]] = r
+		}
+	}
+	if r, ok := muniRank[path]; ok {
+		order[path] = r
+	}
 }
 
 type reportReq struct {

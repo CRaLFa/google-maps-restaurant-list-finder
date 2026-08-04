@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+func TestCollectRanks(t *testing.T) {
+	order := map[string]int{}
+	// 栄 (愛知県名古屋市中区) はリストを持たない中間ノード 愛知県名古屋市 を経由する。
+	collectRanks(order, "愛知県名古屋市中区栄")
+	for _, p := range []string{"愛知県", "愛知県名古屋市", "愛知県名古屋市中区"} {
+		if _, ok := order[p]; !ok {
+			t.Errorf("%s の並び順が拾えていない", p)
+		}
+	}
+	if _, ok := order["愛知県名古屋市中区栄"]; ok {
+		t.Error("自治体でない 栄 に並び順が付いた")
+	}
+	if order["愛知県"] >= order["愛知県名古屋市"] {
+		t.Error("都道府県が市区町村より後ろに並んでいる")
+	}
+	// 同じ都道府県の中ではコード順 (千種区 23101 < 中区 23106)。
+	collectRanks(order, "愛知県名古屋市千種区")
+	if order["愛知県名古屋市千種区"] >= order["愛知県名古屋市中区"] {
+		t.Error("千種区が中区より後ろに並んでいる")
+	}
+}
+
 func TestValidate(t *testing.T) {
 	ok := reportReq{Area: "川越市", Pref: "埼玉県"}
 	if msg := validate(&ok); msg != "" {

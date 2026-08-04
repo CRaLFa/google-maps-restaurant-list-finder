@@ -273,7 +273,7 @@
       <li><b>地図から探す。</b> エリアのピンをタップすると、そのエリアの 3 種類のリストへのリンクが開きます。</li>
       <li><b>地名で絞る。</b> 検索ボックスに入れると、ヒットしたエリアだけにピンとツリーが絞られます。
         エリア名でも所在地でも引けます (「名古屋」で名古屋市内の区が出ます)。</li>
-      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。いずれの階層も北から南の順に並びます。</li>
+      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。都道府県と市区町村は全国地方公共団体コード順、繁華街などのエリアは北から南の順に並びます。</li>
       <li><b>漏れを報告する。</b> 一覧に無いエリアを見つけたら、報告ボタンから知らせてください。</li>
     </ul>
 
@@ -317,6 +317,7 @@ sideEl.scrollTop = sideEl.scrollHeight;
 let map, infoWindow;
 let areas = [];   // { key, area, loc, pref, lat, lng, lists[], marker, el }
 let roots = [];   // ツリーの根 (都道府県)。ノードは { path, label, lat, area, children[] }
+let muniRank = {};   // 都道府県・市区町村のフルパス -> 兄弟の中での並び順 (/api/lists が返す)
 let siteKey = "";
 
 // リストの取得と Maps API のロードは互いに独立なので並行して走らせる。
@@ -333,7 +334,7 @@ fetch("/api/config").then(r => r.json()).then(cfg => {
     document.getElementById("map").innerHTML =
       '<p class="error">Google マップの API キーが未設定です。'
       + 'サーバの MAPS_API_KEY を設定してください。</p>';
-    listsP.then(rows => { buildAreas(rows); render(); });
+    listsP.then(data => { buildAreas(data); render(); });
     return;
   }
   window.initMap = () => start(cfg);
@@ -383,9 +384,10 @@ async function start(cfg) {
 }
 
 // エリア (エリア名 + 所在地) 単位にまとめる。同名エリアが市を跨ぐので所在地込みで束ねる。
-function buildAreas(rows) {
+function buildAreas(data) {
+  muniRank = data.order || {};
   const byArea = new Map();
-  for (const r of rows) {
+  for (const r of data.lists) {
     const key = r.loc + "|" + r.area;
     if (!byArea.has(key)) {
       byArea.set(key, { key, area: r.area, loc: r.loc, pref: r.pref, lat: r.lat, lng: r.lng, lists: [] });
@@ -437,18 +439,22 @@ function buildTree() {
     nodes.get(parent).children.push(n);
   }
 
-  // 代表緯度 (自身と子孫の最大緯度) の降順、つまり北から南に並べる。
-  // 座標があるので JIS 都道府県コードの配列を持たずに済む。
+  // 代表緯度 (自身と子孫の最大緯度) を決めてから並べる。
   for (const n of roots) resolveLat(n);
-  roots.sort((x, y) => y.lat - x.lat);
+  roots.sort(byOrder);
 }
+
+// 都道府県・市区町村は全国地方公共団体コード順、繁華街などのエリアは代表緯度の降順 (北から南)。
+// muniRank に無いノードは順位が 1e9 で揃うので差が 0 になり、緯度の比較に落ちる。
+const byOrder = (x, y) =>
+  (muniRank[x.path] ?? 1e9) - (muniRank[y.path] ?? 1e9) || y.lat - x.lat;
 
 function resolveLat(n) {
   // 座標なしのエリアは -Infinity のままにする。undefined を混ぜると Math.max が NaN になり、
   // その枝から上の並び順が全部壊れる。
   if (n.area && Number.isFinite(n.area.lat)) n.lat = n.area.lat;
   for (const c of n.children) n.lat = Math.max(n.lat, resolveLat(c));
-  n.children.sort((x, y) => y.lat - x.lat);
+  n.children.sort(byOrder);
   return n.lat;
 }
 
