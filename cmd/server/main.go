@@ -68,6 +68,12 @@ func init() {
 		if err != nil {
 			panic("muni-order.txt の団体コードが数値でない: " + line)
 		}
+		// 自治体名は必ず 都道府県市区町村 のいずれかで終わる。
+		// Excel のセルはふりがな (rPh) を持つので、本文と一緒に取り出すと「滝沢市」+「シ」のように繋がる。
+		// 混入するとリスト側の所在地パスと一致せず、そのノードだけ黙ってコード順から外れるので、ここで弾く。
+		if last := []rune(path); !strings.ContainsRune("都道府県市区町村", last[len(last)-1]) {
+			panic("muni-order.txt のパスが自治体名で終わっていない: " + line)
+		}
 		// 都道府県は市区町村コード (5 桁のうち下 3 桁) が 000 の行。
 		if code[2:5] == "000" {
 			prefectures = append(prefectures, path)

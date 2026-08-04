@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// ふりがな (rPh) を本文と一緒に取り出すと、区名が「相模原市緑区サガミハラシミドリク」のようになり
+// 「区」で終わらなくなるため、政令市の区が丸ごと表から抜け落ちていた。
+// 混入そのものは init の接尾辞チェックが弾くが、抜け落ちは件数を見ないと気付けない。
+func TestMuniOrderData(t *testing.T) {
+	for _, p := range []string{
+		"神奈川県相模原市緑区", "静岡県浜松市浜名区", "熊本県熊本市中央区", "岩手県滝沢市",
+	} {
+		if _, ok := muniRank[p]; !ok {
+			t.Errorf("%s が muni-order.txt に無い", p)
+		}
+	}
+	// 1,741 市区町村 + 175 政令市の区 + 47 都道府県 から、同名パスで潰れる分を引いた数。
+	if len(muniRank) < 1900 {
+		t.Errorf("muni-order.txt から取れたパスが %d 件しかない", len(muniRank))
+	}
+}
+
 func TestCollectRanks(t *testing.T) {
 	order := map[string]int{}
 	// 栄 (愛知県名古屋市中区) はリストを持たない中間ノード 愛知県名古屋市 を経由する。
