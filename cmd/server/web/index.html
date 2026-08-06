@@ -66,9 +66,11 @@
   #tree details { border-bottom: none; margin-bottom: 0; padding: 0; }
   #tree summary { margin-bottom: 0; padding: 4px 0; color: var(--fg); }
   #tree > .node > summary { font-weight: bold; }
-  #tree .node .node { margin-left: 14px; }
+  #tree .node .node { margin-left: 24px; }
   #tree .node.hit > summary { color: var(--accent); }
-  #tree ul { list-style: none; margin: 2px 0 6px 28px; padding: 0; }
+  /* リストは子エリアと同じ階層に並ぶので、字下げも子ノードと同じ 24px に揃える。
+     Pico は summary の三角マークを消して右端に ▼ を置くため、行頭に余白は無く、ノードの左端がそのまま文字の頭になる。 */
+  #tree ul { list-style: none; margin: 2px 0 6px 24px; padding: 0; }
   /* Pico は li 自身に list-style を持たせるので、ul 側で none にしても行頭記号が消えない。 */
   #tree li { list-style: none; margin: 0; padding: 0; }
   /* リンクは inline のままだと文字の高さ・幅しか当たり判定にならないので、block にして行全体を押せるようにする。
