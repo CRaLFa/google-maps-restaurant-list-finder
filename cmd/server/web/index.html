@@ -286,7 +286,7 @@
       <li><b>地図から探す。</b> エリアのピンをタップすると、そのエリアの 3 種類のリストへのリンクが開きます。</li>
       <li><b>地名で絞る。</b> 検索ボックスに入れると、ヒットしたエリアだけにピンとツリーが絞られます。
         エリア名でも所在地でも引けます (「名古屋」で名古屋市内の区が出ます)。</li>
-      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。都道府県と市区町村は全国地方公共団体コード順、繁華街などのエリアは北から南の順に並びます。</li>
+      <li><b>都道府県から辿る。</b> ツリーは 都道府県 ▶ 市 ▶ 区 ▶ エリア ▶ リストの入れ子です。都道府県と市区町村は全国地方公共団体コード順、繁華街などのエリアは北から南の順に並びます。名前の横の括弧の数字は、その下にあるエリアの数です。</li>
       <li><b>漏れを報告する。</b> 一覧に無いエリアを見つけたら、報告ボタンから知らせてください。</li>
     </ul>
 
@@ -518,7 +518,8 @@ function renderNode(n, parentEl, hit, open, onlyChild) {
   d.append(sum);
 
   let count = 0;
-  if (n.area && hit(n.area)) {
+  const self = n.area && hit(n.area) ? 1 : 0;
+  if (self) {
     count = 1;
     const ul = document.createElement("ul");
     ul.innerHTML = n.area.lists
@@ -539,8 +540,10 @@ function renderNode(n, parentEl, hit, open, onlyChild) {
     d.addEventListener("toggle", () => { if (d.open) focusArea(only); });
   }
 
-  // 件数は子を持つノード (都道府県・市区) にだけ出す。末端に (1) と付けても情報がない。
-  sum.innerHTML = esc(n.label) + (n.children.length ? ` <span class="count">(${count})</span>` : "");
+  // 括弧の数字は「配下のエリア数」に統一する。
+  // 自身がエリアでも自分は数えないので、絞り込みで子孫が消えたノードには何も出ない。
+  const sub = count - self;
+  sum.innerHTML = esc(n.label) + (sub ? ` <span class="count">(${sub})</span>` : "");
   parentEl.append(d);
   return count;
 }
