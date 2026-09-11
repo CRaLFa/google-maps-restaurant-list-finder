@@ -15,3 +15,7 @@ __pycache__/
 # 一時・バックアップファイル
 *.before-*.tsv
 test-*.tsv
+
+# Slidev
+slides/node_modules/
+slides/dist/
