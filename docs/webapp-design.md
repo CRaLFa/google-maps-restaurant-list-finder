@@ -492,6 +492,54 @@ gcloud firestore backups schedules create --database=restaurant-lists \
 `import_tsv.py` による `data/archive/` からの復元は最後の手段として残す。
 移行時点の 571 件に戻るだけで、それ以降に増えたエリアは復旧できない。
 
+## 報告の通知 (実施済み)
+
+`reports` に報告が入ったら Slack に知らせる。
+これが無いと `status == "new"` のまま溜まって気付けない。
+
+**`POST /api/reports` のハンドラ内から直接送る。**
+Firestore トリガの Cloud Functions (Eventarc) や Pub/Sub 経由も考えられるが、
+報告が日に数件あるかどうかの規模でデプロイ単位と権限設定を増やす価値がない。
+
+守っていること。
+
+- **通知の失敗で報告そのものを落とさない。**
+  Firestore への書き込みが成功した後に通知を試み、失敗してもレスポンスは 200 のままログに残す。
+- **`contact` と `comment` を通知本文に載せない。**
+  `contact` は個人情報で、ログにも出さない方針にしてある。
+  載せるのはドキュメント ID・`pref`・`area` と Firestore コンソールへのリンクだけで、中身はリンク先で見る。
+  `notify` がそもそも `comment` と `contact` を引数に取らないので、載せようがない。
+- **応答を返す前に送り切る。**
+  Cloud Run はリクエストの処理を終えると CPU をほぼ止めるので、goroutine に逃がすと送られないまま終わりうる。
+  失敗ログすら残らず取りこぼしに気付けない。
+  唯一の通知経路なので、応答が 100〜300ms 遅れるのと引き換えに確実に送る。
+  タイムアウトは 3 秒。
+  `context` をリクエストのものではなく `context.Background()` から作るのは、クライアントの切断で通知まで落とさないため。
+- **Webhook URL をログに出さない。**
+  送信に失敗したときのエラーは `url.Error` で、そのメッセージは宛先の URL をそのまま含む。
+  素通しすると Secret Manager に置いた値が Cloud Logging から読めてしまうので、出す前に伏せる。
+- **エリア名をエスケープする。**
+  ユーザーの入力がそのまま本文に入るので、Slack が要求する `&` `<` `>` の 3 文字を置換する。
+
+### 送信手段: Slack の Incoming Webhook
+
+受信箱に集める点ではメールも向いているが、**Google Cloud にメール送信サービスは無い。**
+
+| 手段 | 評価 |
+| --- | --- |
+| Slack / Discord の Webhook | **採用。** URL に POST 1 回。登録不要で履歴も残る |
+| 外部のメール API (Resend / SendGrid / Mailgun) | 実装量は Webhook とほぼ同じだが、サービスの登録と API キーの管理が増える |
+| Gmail API + サービスアカウント | ドメイン全体の委任が要る。Workspace 前提で個人プロジェクトには重い |
+| SMTP を直接叩く | Cloud Run は 25 番ポートを塞いでいる。587 は通るが認証情報の管理が増える |
+
+Webhook URL は `SLACK_WEBHOOK_URL` で渡す。
+他のキーと違い**公開前提の値ではない** (URL を知っている者は誰でもチャンネルに投稿できる) ので、
+環境変数に直書きせず Secret Manager に置いて Cloud Run から参照する。
+発行と設定の手順は [`development.md`](./development.md) にある。
+
+未設定なら通知を送らず、起動時に警告を 1 行出す。
+ローカル開発で試した報告を誤ってチャンネルに流さないための逃げ道。
+
 ## 運用: 報告のトリアージ
 
 1. `reports` の `status == "new"` を一覧する管理コマンドを用意する (`scripts/list_reports.py`)。
@@ -574,45 +622,6 @@ Go の buildpack は Node のビルドを知らないので、`cmd/server/web/` 
 
 CI/CD を Cloud Build にする判断と噛み合うので、前者を推す。
 生成物をリポジトリにコミットせずに済む点も良い (`cmd/server/web/` を `.gitignore` に入れる)。
-
-### 報告が追加されたときの通知
-
-現在 `reports` は `status == "new"` のまま溜まるだけで、気付く手段が無い。
-トリアージ用の `scripts/list_reports.py` も未実装。
-
-**`POST /api/reports` のハンドラ内から直接送る (決定)。**
-Firestore トリガの Cloud Functions (Eventarc) や Pub/Sub 経由も考えられるが、
-報告が日に数件あるかどうかの規模でデプロイ単位と権限設定を増やす価値がない。
-
-守ること。
-
-- **通知の失敗で報告そのものを落とさない。**
-  Firestore への書き込みが成功した後に通知を試み、失敗してもレスポンスは 200 のままログに残す。
-- **`contact` と `comment` を通知本文に載せない。**
-  `contact` は個人情報で、ログにも出さない方針にしてある。
-  通知にはドキュメント ID・`area`・`pref` だけを載せ、中身は Firestore を直接見に行く。
-- **通知の送信でレスポンスを待たせない。**
-  goroutine に逃がし、`context.Background()` を使う (リクエストの context は応答後に切れる)。
-
-#### 送信手段: メールにするなら外部サービスを使う
-
-蓄積されたものを後から確認できる点でメールが向いているが、
-**Google Cloud にメール送信サービスは無い。**
-これが「面倒」の正体で、回避策も限られる。
-
-| 手段 | 評価 |
-| --- | --- |
-| 外部のメール API (Resend / SendGrid / Mailgun) | **これが素直。** HTTPS で POST 1 回。無料枠で足りる |
-| Gmail API + サービスアカウント | ドメイン全体の委任が要る。Workspace 前提で個人プロジェクトには重い |
-| SMTP を直接叩く | Cloud Run は 25 番ポートを塞いでいる。587 は通るが認証情報の管理が増える |
-
-外部サービスを 1 つ挟むことになるが、実装量は Webhook とほぼ同じ (JSON を POST するだけ)。
-API キーは Secret Manager に置き、Cloud Run から参照する。
-環境変数に直書きしてもよいが、他のキーと違いこれは**公開前提の値ではない**ので分けて扱う。
-
-Slack / Discord の Webhook なら外部サービスの登録すら要らず、URL に POST するだけで済む。
-履歴も残るので「蓄積されたものを確認する」目的は満たせる。
-メールの受信箱に集めたいかどうかの好みで決めればよい。
 
 ## Favicon と OGP (実施済み)
 

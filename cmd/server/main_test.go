@@ -1,7 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"log"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -112,5 +118,64 @@ func TestClientIP(t *testing.T) {
 	r.Header.Set("X-Forwarded-For", "203.0.113.9, 10.0.0.1")
 	if got := clientIP(r); got != "203.0.113.9" {
 		t.Errorf("X-Forwarded-For 先頭の IP が %q", got)
+	}
+}
+
+// 通知の本文に載せてよいのはドキュメント ID と公開情報だけで、
+// comment と contact は notify の引数に無い (渡しようがない) ことで担保している。
+// ここで見るのは、宛先が未設定なら送らないことと、エリア名の記号が Slack 用にエスケープされること。
+func TestNotify(t *testing.T) {
+	var hits int
+	var payload struct {
+		Text string `json:"text"`
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		b, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(b, &payload); err != nil {
+			t.Errorf("通知の本文が JSON ではない: %v", err)
+		}
+	}))
+	defer ts.Close()
+
+	(&server{}).notify("doc1", "東京都", "渋谷")
+	if hits != 0 {
+		t.Errorf("SLACK_WEBHOOK_URL が空なのに %d 回送信した", hits)
+	}
+
+	s := &server{webhookURL: ts.URL, project: "proj", database: "db"}
+	s.notify("doc1", "東京都", "<渋谷> & 新宿")
+	if hits != 1 {
+		t.Fatalf("送信回数が %d", hits)
+	}
+	for _, want := range []string{"doc1", "東京都", "&lt;渋谷&gt; &amp; 新宿", "proj", "db"} {
+		if !strings.Contains(payload.Text, want) {
+			t.Errorf("通知の本文に %q が無い: %s", want, payload.Text)
+		}
+	}
+	if strings.Contains(payload.Text, "<渋谷>") {
+		t.Errorf("エリア名がエスケープされていない: %s", payload.Text)
+	}
+}
+
+// 通知に失敗したときのエラーには宛先の URL がそのまま入る (url.Error の仕様)。
+// Webhook URL は Secret Manager に置いている値なので、素通しするとログから読めてしまう。
+func TestNotifyHidesWebhookURL(t *testing.T) {
+	// 閉じたサーバに投げて送信エラーを起こす。
+	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := ts.URL + "/services/T0/B0/SHOULD_NOT_APPEAR"
+	ts.Close()
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	(&server{webhookURL: url}).notify("doc1", "東京都", "渋谷")
+
+	if !strings.Contains(buf.String(), "通知に失敗") {
+		t.Fatalf("送信の失敗がログに出ていない: %s", buf.String())
+	}
+	if strings.Contains(buf.String(), "SHOULD_NOT_APPEAR") {
+		t.Errorf("Webhook URL がログに漏れている: %s", buf.String())
 	}
 }
