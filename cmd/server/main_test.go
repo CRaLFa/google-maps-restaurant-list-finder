@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -152,5 +155,27 @@ func TestNotify(t *testing.T) {
 	}
 	if strings.Contains(payload.Text, "<渋谷>") {
 		t.Errorf("エリア名がエスケープされていない: %s", payload.Text)
+	}
+}
+
+// 通知に失敗したときのエラーには宛先の URL がそのまま入る (url.Error の仕様)。
+// Webhook URL は Secret Manager に置いている値なので、素通しするとログから読めてしまう。
+func TestNotifyHidesWebhookURL(t *testing.T) {
+	// 閉じたサーバに投げて送信エラーを起こす。
+	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := ts.URL + "/services/T0/B0/SHOULD_NOT_APPEAR"
+	ts.Close()
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	(&server{webhookURL: url}).notify("doc1", "東京都", "渋谷")
+
+	if !strings.Contains(buf.String(), "通知に失敗") {
+		t.Fatalf("送信の失敗がログに出ていない: %s", buf.String())
+	}
+	if strings.Contains(buf.String(), "SHOULD_NOT_APPEAR") {
+		t.Errorf("Webhook URL がログに漏れている: %s", buf.String())
 	}
 }
