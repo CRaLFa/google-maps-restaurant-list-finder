@@ -2,8 +2,8 @@
 # master への push と PR の両方でこのファイルを使い、デプロイするかどうかだけを _DEPLOY で切り替える。
 # 設定ファイルを 2 つに分けると検査のステップが二重管理になるため。
 #
-# ドキュメントだけの変更でビルドを起こさない設定はここではなくトリガ側の ignoredFiles で行う。
-# トリガの作成コマンドは docs/development.md にある。
+# アプリのコード以外だけの変更でビルドを起こさない設定は、ここではなくトリガ側 (triggers/*.yaml の ignoredFiles) で行う。
+# トリガ定義の反映手順は docs/development.md にある。
 
 substitutions:
   # master への push トリガだけが true を渡す。

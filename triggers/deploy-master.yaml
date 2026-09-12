@@ -1,0 +1,20 @@
+filename: cloudbuild.yaml
+id: eb40993a-b5dd-4eb3-8c4a-7efcb58b9e77
+ignoredFiles:
+- '**/*.md'
+- '*.md'
+- docs/**
+- slides/**
+- triggers/**
+- LICENSE
+- .gitignore
+name: google-maps-restaurant-list-finder-deploy-master
+repositoryEventConfig:
+  push:
+    branch: ^master$
+  repository: projects/sandbox-morita-1-441408/locations/asia-northeast1/connections/gh/repositories/google-maps-restaurant-list-finder
+  repositoryType: GITHUB
+resourceName: projects/sandbox-morita-1-441408/locations/asia-northeast1/triggers/eb40993a-b5dd-4eb3-8c4a-7efcb58b9e77
+serviceAccount: projects/sandbox-morita-1-441408/serviceAccounts/cloud-build@sandbox-morita-1-441408.iam.gserviceaccount.com
+substitutions:
+  _DEPLOY: 'true'
