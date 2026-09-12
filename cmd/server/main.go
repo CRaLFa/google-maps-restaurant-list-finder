@@ -27,6 +27,7 @@ import (
 	recaptcha "cloud.google.com/go/recaptchaenterprise/v2/apiv1"
 	recaptchapb "cloud.google.com/go/recaptchaenterprise/v2/apiv1/recaptchaenterprisepb"
 	"github.com/joho/godotenv"
+	"github.com/slack-go/slack"
 	"google.golang.org/api/iterator"
 )
 
@@ -90,13 +91,15 @@ func init() {
 }
 
 type server struct {
-	fs        *firestore.Client
-	recaptcha *recaptcha.Client
-	project   string
-	siteKey   string
-	mapsKey   string
-	mapID     string
-	minScore  float64
+	fs         *firestore.Client
+	recaptcha  *recaptcha.Client
+	project    string
+	database   string
+	siteKey    string
+	webhookURL string
+	mapsKey    string
+	mapID      string
+	minScore   float64
 
 	lists     listsCache
 	rateMu    sync.Mutex
@@ -136,13 +139,18 @@ func main() {
 	log.Printf("Firestore: project=%s database=%s", project, database)
 
 	s := &server{
-		fs:       fsClient,
-		project:  project,
-		siteKey:  os.Getenv("RECAPTCHA_SITE_KEY"),
-		mapsKey:  os.Getenv("MAPS_API_KEY"),
-		mapID:    os.Getenv("MAPS_MAP_ID"),
-		minScore: 0.5,
-		rateSeen: map[string][]time.Time{},
+		fs:         fsClient,
+		project:    project,
+		database:   database,
+		siteKey:    os.Getenv("RECAPTCHA_SITE_KEY"),
+		webhookURL: os.Getenv("SLACK_WEBHOOK_URL"),
+		mapsKey:    os.Getenv("MAPS_API_KEY"),
+		mapID:      os.Getenv("MAPS_MAP_ID"),
+		minScore:   0.5,
+		rateSeen:   map[string][]time.Time{},
+	}
+	if s.webhookURL == "" {
+		log.Print("警告: SLACK_WEBHOOK_URL が未設定のため報告の通知を送らない")
 	}
 	if s.mapsKey == "" {
 		log.Print("警告: MAPS_API_KEY が未設定のため地図を表示できない")
@@ -317,7 +325,31 @@ func (s *server) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("報告を受理: %s", ref.ID)
+	// 通知は書き込みが済んでから非同期に送る。
+	// 通知の失敗で報告そのものを落とさないため、また送信の往復で応答を待たせないため。
+	go s.notify(ref.ID, req.Pref, req.Area)
 	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// Slack の text では & < > だけをエスケープする。
+// 出典: https://api.slack.com/reference/surfaces/formatting#escaping
+var slackEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
+// 報告が入ったことを Slack に知らせる。
+// comment と contact は個人情報を含みうるので通知に載せず、中身は Firestore のリンク先で見る。
+// リクエストの context は応答後に切れるので context.Background() から作る。
+// 呼び出し側は goroutine で呼ぶこと。
+func (s *server) notify(id, pref, area string) {
+	if s.webhookURL == "" {
+		return
+	}
+	text := fmt.Sprintf("漏れの報告が届いたわ。\n*%s %s*\nhttps://console.cloud.google.com/firestore/databases/%s/data/panel/reports/%s?project=%s",
+		slackEscaper.Replace(pref), slackEscaper.Replace(area), s.database, id, s.project)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := slack.PostWebhookContext(ctx, s.webhookURL, &slack.WebhookMessage{Text: text}); err != nil {
+		log.Printf("Slack への通知に失敗: %v", err)
+	}
 }
 
 func validate(req *reportReq) string {

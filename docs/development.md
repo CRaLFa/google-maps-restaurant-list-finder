@@ -26,6 +26,7 @@ go test ./... && go run ./cmd/server            # サーバ (http://localhost:80
 | `MAPS_API_KEY` | Maps JavaScript API のキー。空にすると地図が出ない (ツリーと検索は動く) |
 | `MAPS_MAP_ID` | 省くと開発用の `DEMO_MAP_ID` にフォールバックする |
 | `RECAPTCHA_SITE_KEY` | 空にすると bot 検証を飛ばす。ローカル開発時のみ空にする |
+| `SLACK_WEBHOOK_URL` | 報告の通知先。空にすると通知を送らない。ローカル開発では空のままにする |
 | `PORT` | サーバの待ち受けポート。省略時 8080 |
 | `DEV` | 収集スクリプト用の端末シリアル。`adb devices` で確認する |
 
@@ -56,6 +57,50 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
 - [`scripts/store.py`](../scripts/store.py) — Firestore アクセスの集約先。
   ドキュメント ID の組み立て、所在地からの都道府県導出、upsert。
   `python3 scripts/store.py` で自己チェックが走る。
+
+### 報告の通知 (Slack)
+
+報告が `reports` に入るたびに Slack へ 1 通投げる。
+載せるのはドキュメント ID・都道府県・エリア名と Firestore コンソールへのリンクだけで、`comment` と `contact` は載せない。
+仕組みと選定の理由は [`webapp-design.md`](./webapp-design.md) にある。
+
+**Webhook URL の発行。**
+
+1. https://api.slack.com/apps?new_app=1 を開く。アプリ作成の画面が出る。
+   雛形を選ばされたら、何も入っていないもの (**Blank app**) を選ぶ。
+2. アプリ名 (例: `漏れ報告通知`) と投稿先のワークスペースを選んで **Create**。
+3. 左メニューの **Incoming Webhooks** を開き、**Activate Incoming Webhooks** を On にする。
+4. 画面が更新されて現れる **Add New Webhook to Workspace** を押し、投稿先のチャンネルを選んで **Authorize**。
+5. **Webhook URLs for Your Workspace** に出た `https://hooks.slack.com/services/T.../B.../...` をコピーする。
+
+チャンネルは Webhook ごとに固定される。
+投稿先を変えるには Webhook を作り直すこと。
+プライベートチャンネルに投げたい場合は、先にアプリをそのチャンネルに招待しておく。
+
+**Secret Manager に置いて Cloud Run から参照する。**
+URL を知っていれば誰でもチャンネルに投稿できるので、他のキーと違い環境変数に直書きしない。
+
+```bash
+# 末尾に改行を入れないため echo ではなく printf を使う。
+printf %s 'https://hooks.slack.com/services/...' \
+  | gcloud secrets create slack-webhook-url \
+      --project sandbox-morita-1-441408 --data-file=-
+
+gcloud secrets add-iam-policy-binding slack-webhook-url \
+  --project sandbox-morita-1-441408 \
+  --member serviceAccount:gmaps-list-finder@sandbox-morita-1-441408.iam.gserviceaccount.com \
+  --role roles/secretmanager.secretAccessor
+
+gcloud run services update google-maps-restaurant-list-finder \
+  --project sandbox-morita-1-441408 --region asia-northeast1 \
+  --set-secrets SLACK_WEBHOOK_URL=slack-webhook-url:latest
+```
+
+URL を差し替えるときは `gcloud secrets versions add slack-webhook-url --data-file=-` で新しいバージョンを足す。
+参照は `:latest` なので、Cloud Run 側は次のデプロイで新しい値を拾う。
+
+通知が来ないときは Cloud Logging で `Slack への通知に失敗` を探す。
+報告そのものは通知の成否と無関係に Firestore に入っているので、取りこぼしは無い。
 
 ## CI/CD
 
