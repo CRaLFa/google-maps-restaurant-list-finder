@@ -76,42 +76,34 @@ Node (`tree_check.js`) の 3 ステップ。
 2 つに分けると検査のステップが二重管理になるため。
 `deploy-master` だけが `_DEPLOY=true` を渡し、PR 側は既定の `false` のままデプロイのステップを素通りする。
 
-**ドキュメントとスライドだけの変更ではビルドを起こさない。**
-これはトリガ側の `--ignored-files` で行う (`cloudbuild.yaml` には書けない)。
+**ドキュメント・スライド・トリガ定義だけの変更ではビルドを起こさない。**
+これはトリガ側の `ignoredFiles` で行う (`cloudbuild.yaml` には書けない)。
 変更されたファイルが全部このパターンに一致するとビルドがスキップされる。
 一致しないファイルが 1 つでもあれば通常どおり走る。
 
-### トリガの作り直し
+### トリガの定義
 
-GitHub 接続 (`gh`) とトリガは作成済みなので、通常は触らない。
-作り直すときのために手順を残す。
+トリガの定義は [`../triggers/`](../triggers) の YAML が正典。
+設定を変えるときは YAML を直し、`import` で反映する。
 
 ```bash
 P=sandbox-morita-1-441408
 R=asia-northeast1
-REPO=projects/$P/locations/$R/connections/gh/repositories/google-maps-restaurant-list-finder
-IGNORED='**/*.md,*.md,docs/**,slides/**,LICENSE,.gitignore'
-SA=projects/$P/serviceAccounts/cloud-build@$P.iam.gserviceaccount.com
 
-# master への push → 検査 + デプロイ
-gcloud builds triggers create github --name=google-maps-restaurant-list-finder-deploy-master \
-  --project=$P --region=$R --repository=$REPO \
-  --branch-pattern='^master$' --build-config=cloudbuild.yaml \
-  --substitutions=_DEPLOY=true --ignored-files="$IGNORED" --service-account=$SA
-
-# master への PR → 検査のみ
-gcloud builds triggers create github --name=google-maps-restaurant-list-finder-test-pr \
-  --project=$P --region=$R --repository=$REPO \
-  --pull-request-pattern='^master$' --comment-control=COMMENTS_DISABLED \
-  --build-config=cloudbuild.yaml \
-  --ignored-files="$IGNORED" --service-account=$SA
+gcloud builds triggers import --source=triggers/deploy-master.yaml --project=$P --region=$R
+gcloud builds triggers import --source=triggers/test-pr.yaml --project=$P --region=$R
 ```
 
-トリガ名は後から変更できない (`gcloud builds triggers update` に `--name` が無い)。
-変えたいときは削除して作り直す。トリガは状態を持たないので消して困るものはない。
+`gcloud builds triggers update github` は使わない。
+1 世代目の GitHub トリガ用のコマンドなので、このリポジトリのように Cloud Build のリポジトリ接続 (2 世代目) を使うトリガに投げると `INVALID_ARGUMENT` になる。
 
-`--comment-control=COMMENTS_DISABLED` は PR を開いた時点で自動で走らせるため。
-既定の `COMMENTS_ENABLED` だと、リポジトリのオーナーが `/gcbrun` とコメントするまで待たされる。
+YAML の `id` と `resourceName` は既存のトリガを指す宛先。
+GitHub 接続 (`gh`) ごと作り直すときは、この 2 行を消してから `import` すると新しく作られる。
+トリガ名は後から変更できないので、名前を変えたいときも削除して作り直す。
+トリガは状態を持たないので消して困るものはない。
+
+`commentControl` は既定値の `COMMENTS_DISABLED` なので YAML には現れない。
+PR を開いた時点で自動で走らせるための設定で、`COMMENTS_ENABLED` だとリポジトリのオーナーが `/gcbrun` とコメントするまで待たされる。
 外部から PR が飛んでくるリポジトリではないので無効にしてよい。
 
 ビルドは `cloud-build@` サービスアカウントで動く。
