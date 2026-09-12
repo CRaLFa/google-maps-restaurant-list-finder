@@ -76,7 +76,7 @@ Node (`tree_check.js`) の 3 ステップ。
 2 つに分けると検査のステップが二重管理になるため。
 `deploy-master` だけが `_DEPLOY=true` を渡し、PR 側は既定の `false` のままデプロイのステップを素通りする。
 
-**ドキュメントだけの変更ではビルドを起こさない。**
+**ドキュメントとスライドだけの変更ではビルドを起こさない。**
 これはトリガ側の `--ignored-files` で行う (`cloudbuild.yaml` には書けない)。
 変更されたファイルが全部このパターンに一致するとビルドがスキップされる。
 一致しないファイルが 1 つでもあれば通常どおり走る。
@@ -90,7 +90,7 @@ GitHub 接続 (`gh`) とトリガは作成済みなので、通常は触らな�
 P=sandbox-morita-1-441408
 R=asia-northeast1
 REPO=projects/$P/locations/$R/connections/gh/repositories/google-maps-restaurant-list-finder
-IGNORED='**/*.md,*.md,docs/**,LICENSE,.gitignore'
+IGNORED='**/*.md,*.md,docs/**,slides/**,LICENSE,.gitignore'
 SA=projects/$P/serviceAccounts/cloud-build@$P.iam.gserviceaccount.com
 
 # master への push → 検査 + デプロイ
