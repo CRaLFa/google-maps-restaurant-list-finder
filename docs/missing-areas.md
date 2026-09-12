@@ -1,6 +1,6 @@
 # 収録から欠けていそうなエリア (調査記録)
 
-2026-07-26 時点、168 エリア (502 行) だった頃に洗い出した調査記録。
+2026-07-26 時点、168 エリアだった頃に洗い出した調査記録。
 以下の項目は [`seed.tsv`](../data/seed.tsv) にシードとして反映し、
 [`fetch_missing_lists.py`](../scripts/collect/fetch_missing_lists.py) で走査済み。
 現在の到達状況は [README](../README.md) の冒頭を参照。
