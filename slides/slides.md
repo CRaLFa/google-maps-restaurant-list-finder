@@ -26,6 +26,9 @@ title: Google マップの「公式レストランリスト」を地図から探
 - 461 件フォローしていたが、アプリや Web の「保存済み」は表示数に上限があり全件を確認できない
 
 ---
+layout: image-right
+image: /images/overview.png
+---
 
 # 作ったもの
 
@@ -53,7 +56,7 @@ title: Google マップの「公式レストランリスト」を地図から探
 - リスト一覧は API で取れず、Web 版の Google マップにも出てこない。残る経路は実機のアプリだけ
 - 「保存済み」画面を uiautomator dump で読み、リスト名を全件収集
 - 各リストの「共有」→「クリップボードにコピー」を叩き、adb-clip でクリップボードを読む
-- 番兵をクリップボードに置いてから叩き、更新されなければリトライ
+- 番兵をクリップボードに置いてから叩き、番兵のままなら共有シートを開くところからやり直す (同じリストは 2 回まで)
 - 1 件 20〜25 秒、461 件で 2.5〜3 時間。中断しても Firestore に upsert 済みの分は飛ばして再開できる
 - am start を連打すると Maps が ANR。画面再構築は最後の手段にした
 
@@ -71,11 +74,22 @@ title: Google マップの「公式レストランリスト」を地図から探
 
 # 一番ハマった話: ピンが全部西にずれていた
 
+<div class="grid grid-cols-2 gap-4 mb-4">
+  <div>
+    <img src="/images/correction-before.png" alt="補正前の地図。大津市のピンが琵琶湖ではなく京都市の北西の山中に立っている" class="rounded shadow" />
+    <div class="text-sm text-center opacity-70">補正前: 大津市のピンが 30 km 西の山中</div>
+  </div>
+  <div>
+    <img src="/images/correction-after.png" alt="補正後の地図。大津市のピンが琵琶湖の西岸に戻り、京都市のピンも市街に乗っている" class="rounded shadow" />
+    <div class="text-sm text-center opacity-70">補正後: 琵琶湖の西岸に戻る</div>
+  </div>
+</div>
+
 - OSM の行政境界と突き合わせると 155 エリア中 153 件が西寄り。中央値 3.5 km、最大 30 km (大津市)
 - 原因は Google マップの左パネル (480px)。URL の中心は地図キャンバス全体の中心なので、常に 240px 分だけ西を指す
 - 補正式: lng += panel/2 × 360 / (256 × 2^zoom)
 - 補正後は境界外が 34 → 0 件、経度差の中央値は 3.5 km → 27 m
-- 緯度は完全一致で経度だけ動くことが「場所ではなくブラウザの都合」の裏付けになった
+- 緯度に偏りが無く経度だけが揃ってずれることが「場所ではなくブラウザの都合」の裏付けになった
 
 ---
 

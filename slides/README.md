@@ -22,5 +22,7 @@ vp run export       # PDF に書き出す。初回は Playwright の Chromium �
   直下に `package.json` を置くと、Cloud Run の `--source .` デプロイで buildpack が Go ではなく Node と誤検出しうるため。
 - `@slidev/cli` とテーマはここの `devDependencies` に入れている。
   `vp add -g` で入れたグローバル版は Vite+ の隔離ストアに置かれ、Slidev からテーマを解決できない。
-- 画像は `img/` に置き、原稿から `![](./img/xxx.png)` で参照する。
+- 画像は `public/images/` に置き、原稿から `![](/images/xxx.png)` で参照する。
+  フロントマターの `image:` (`layout: image-right` など) が解決できるのは `public/` 配下だけ。
+  Qiita 記事 (`docs/qiita-article.md`) も同じ実体を `../slides/public/images/...` で参照している。
 - `node_modules/` と `dist/` はリポジトリ直下の `.gitignore` で除外している。
