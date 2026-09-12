@@ -61,12 +61,11 @@ Firestore は `(default)` ではなく名前付きデータベースに置いて
 ### 報告の通知 (Slack)
 
 報告が `reports` に入るたびに Slack へ 1 通投げる。
-載せるのはドキュメント ID・都道府県・エリア名と Firestore コンソールへのリンクだけで、`comment` と `contact` は載せない。
 仕組みと選定の理由は [`webapp-design.md`](./webapp-design.md) にある。
 
 **Webhook URL の発行。**
 
-1. https://api.slack.com/apps?new_app=1 を開く。アプリ作成の画面が出る。
+1. https://api.slack.com/apps?new_app=1 を開く。
    雛形を選ばされたら、何も入っていないもの (**Blank app**) を選ぶ。
 2. アプリ名 (例: `漏れ報告通知`) と投稿先のワークスペースを選んで **Create**。
 3. 左メニューの **Incoming Webhooks** を開き、**Activate Incoming Webhooks** を On にする。
