@@ -16,7 +16,7 @@ Google マップには、エリアごとに自動生成される公式のレス�
 
 ソースコードは GitHub で公開しています。
 
-https://github.com/CRaLFa/google-maps-restaurant-list-finder
+<https://github.com/CRaLFa/google-maps-restaurant-list-finder>
 
 ## レストランリストとは何か
 
@@ -72,6 +72,18 @@ https://github.com/CRaLFa/google-maps-restaurant-list-finder
 | サーバ | Go / Cloud Run 1 サービス。静的ファイルは `go:embed` でバイナリ 1 個に同梱 |
 | フロント | 単一 HTML + Maps JavaScript API + Pico.css |
 | スパム対策 | reCAPTCHA Enterprise + サーバ側レート制限 |
+
+## 集めているものと、集めていないもの
+
+集めているのは **リスト名とリストへの共有 URL、そのエリアの代表座標だけ**です。
+リストに載っている店の名前・住所・レビューは 1 件も保存していません。
+リストの中身は、共有 URL を開いて Google マップ上で見ることになります。
+
+起点も全国の総当たりではなく、**自分がフォローした約 460 件のリスト**です。
+先に書いたとおり、Takeout でも「保存済み」ページでも全件を確認できない自分のデータを、手元に取り出したかったのが出発点でした。
+
+取得の速度も実機の UI そのままです。
+人が画面を触るのと同じ手順を 1 件ずつ順に踏むだけで、並列化も高速化もしていません。
 
 以下、収集側から順に見ていきます。
 
