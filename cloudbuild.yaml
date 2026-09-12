@@ -13,6 +13,10 @@ substitutions:
 options:
   # ユーザー指定のサービスアカウントで動かす場合、ログの出力先を明示しないとビルドが起動しない。
   logging: CLOUD_LOGGING_ONLY
+  # go のコンパイルが CPU 律速で、既定の 2 vCPU では go ステップに 2 分 44 秒かかる。
+  # 8 vCPU にすると 47 秒まで縮む。
+  # 既定以外のマシンタイプには無料枠が無く分単位で課金されるが、1 ビルドあたり数円の差。
+  machineType: E2_HIGHCPU_8
 
 # デプロイのステップが内部で別のビルド (buildpacks) を回すため、既定の 10 分では足りない。
 timeout: 1800s
