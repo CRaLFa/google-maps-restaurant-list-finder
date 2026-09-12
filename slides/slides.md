@@ -23,7 +23,7 @@ title: Google マップの「公式レストランリスト」を地図から探
 
 - Google Takeout では自分が作ったリストしか取れず、フォローした公式リストの中身は出てこない
 - 「渋谷: トップリスト」のようなリストが全国にどれだけあるのか一覧する手段が無い
-- 460 件ほどフォローしていて、アプリの「保存済み」は探すのに向いていない
+- 461 件フォローしていたが、アプリや Web の「保存済み」は表示数に上限があり全件を確認できない
 
 ---
 
@@ -50,6 +50,7 @@ title: Google マップの「公式レストランリスト」を地図から探
 
 # 収集編 1: 実機を adb で操作する
 
+- リスト一覧は API で取れず、Web 版の Google マップにも出てこない。残る経路は実機のアプリだけ
 - 「保存済み」画面を uiautomator dump で読み、リスト名を全件収集
 - 各リストの「共有」→「クリップボードにコピー」を叩き、adb-clip でクリップボードを読む
 - 番兵をクリップボードに置いてから叩き、更新されなければリトライ
@@ -60,6 +61,7 @@ title: Google マップの「公式レストランリスト」を地図から探
 
 # 収集編 2: 座標は curl では取れない
 
+- 集まった共有 URL に座標は入っていない。ピンを地図に置くには緯度経度が要る
 - 共有 URL は座標無しの URL にリダイレクトし、SPA が読み終わってから replaceState で @lat,lng,zoom が付く
 - 実ブラウザで JS を動かして URL を待つしかない
 - 同一タブで続けて開くと再センタリングされないので毎回 about:blank を挟む
@@ -132,4 +134,5 @@ title: Google マップの「公式レストランリスト」を地図から探
 
 - やりたいこと: フロントの TypeScript 化、報告が来たときの通知、観光地枠の拡充
 - 200 エリア / 597 リスト。日本国内のみ
-- https://google-maps-restaurant-list-finder-bxnbzgrdda-an.a.run.app
+- アプリ: https://google-maps-restaurant-list-finder-bxnbzgrdda-an.a.run.app
+- ソース: https://github.com/CRaLFa/google-maps-restaurant-list-finder
