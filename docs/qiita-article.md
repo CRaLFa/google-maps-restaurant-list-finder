@@ -18,6 +18,8 @@ Google マップには、エリアごとに自動生成される公式のレス�
 
 <https://github.com/CRaLFa/google-maps-restaurant-list-finder>
 
+<https://x.com/cra_lfa/status/2098921203713065330>
+
 ## レストランリストとは何か
 
 **レストランリスト**は、Google マップがエリアごとに用意している公式のおすすめレストラン一覧です。
