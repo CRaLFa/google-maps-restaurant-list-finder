@@ -26,6 +26,9 @@ title: Google マップの「公式レストランリスト」を地図から探
 - 461 件フォローしていたが、アプリや Web の「保存済み」は表示数に上限があり全件を確認できない
 
 ---
+layout: image-right
+image: /images/overview.png
+---
 
 # 作ったもの
 
@@ -70,6 +73,17 @@ title: Google マップの「公式レストランリスト」を地図から探
 ---
 
 # 一番ハマった話: ピンが全部西にずれていた
+
+<div class="grid grid-cols-2 gap-4 mb-4">
+  <div>
+    <img src="/images/correction-before.png" class="rounded shadow" />
+    <div class="text-sm text-center opacity-70">補正前: 大津市のピンが 30 km 西の山中</div>
+  </div>
+  <div>
+    <img src="/images/correction-after.png" class="rounded shadow" />
+    <div class="text-sm text-center opacity-70">補正後: 琵琶湖の西岸に戻る</div>
+  </div>
+</div>
 
 - OSM の行政境界と突き合わせると 155 エリア中 153 件が西寄り。中央値 3.5 km、最大 30 km (大津市)
 - 原因は Google マップの左パネル (480px)。URL の中心は地図キャンバス全体の中心なので、常に 240px 分だけ西を指す

@@ -10,7 +10,7 @@ Google マップには、エリアごとに自動生成される公式のレス�
 
 <https://google-maps-restaurant-list-finder-bxnbzgrdda-an.a.run.app>
 
-![全国のリストを地図のピンと左のツリーで一覧している画面](images/overview.png)
+![全国のリストを地図のピンと左のツリーで一覧している画面](../slides/public/images/overview.png)
 
 2026/09/12 現在、200 エリア / 597 リストを収録しています。
 
@@ -56,11 +56,11 @@ https://github.com/CRaLFa/google-maps-restaurant-list-finder
 
 ピンをクリックすると、そのエリアにあるリストへのリンクが吹き出しで開きます。
 
-![名古屋市のピンを開き、トップリスト・地元で人気・トレンドへのリンクが並んでいる吹き出し](images/popup.png)
+![名古屋市のピンを開き、トップリスト・地元で人気・トレンドへのリンクが並んでいる吹き出し](../slides/public/images/popup.png)
 
 地名を打つと、ピンとツリーが同時に絞られます。
 
-![「名古屋」と入力するとピンが 1 本に絞られ、ツリーが市内の区まで開く様子](images/search.mp4)
+![「名古屋」と入力するとピンが 1 本に絞られ、ツリーが市内の区まで開く様子](../slides/public/images/search.mp4)
 
 ## 全体構成
 
@@ -136,7 +136,7 @@ for _ in range(RETRY):
 こうして、当時収集していた 155 エリア分の座標が揃いました。
 地図に置いてみるとそれらしい位置に並ぶのですが、どれも街の中心から少し左にずれているように見えました。
 
-![補正前。大津市のピンが琵琶湖ではなく京都の北西の山中に落ちている](images/correction-before.png)
+![補正前。大津市のピンが琵琶湖ではなく京都の北西の山中に落ちている](../slides/public/images/correction-before.png)
 
 左上のピンが大津市です。
 琵琶湖どころか京都市すら越えて、30 km 西の山の中に立っていました。
@@ -174,7 +174,7 @@ def correct(lat: str, lng: str, zoom: str, panel: int) -> tuple[float, float]:
 補正後に同じ検証をかけると、境界外は 34 件から 0 件になりました。
 経度差の中央値は 3.5 km から 27 m に縮みました。
 
-![補正後。大津市のピンが琵琶湖の西岸に戻り、京都市のピンも市街に乗っている](images/correction-after.png)
+![補正後。大津市のピンが琵琶湖の西岸に戻り、京都市のピンも市街に乗っている](../slides/public/images/correction-after.png)
 
 同じ範囲を補正後に撮り直したものです。
 大津市は琵琶湖の西岸へ、京都市は市街の上へ戻りました。
