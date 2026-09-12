@@ -60,7 +60,7 @@ https://github.com/CRaLFa/google-maps-restaurant-list-finder
 
 地名を打つと、ピンとツリーが同時に絞られます。
 
-![「名古屋」と入力するとピンが 1 本に絞られ、ツリーが市内の区まで開く様子](../slides/public/images/search.mp4)
+![「名古屋」と入力するとピンが 1 本に絞られ、ツリーが市内の区まで開く様子](../slides/public/images/search.gif)
 
 ## 全体構成
 
