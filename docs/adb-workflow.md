@@ -44,44 +44,14 @@ adb.exe -s $DEV shell "cat /sdcard/window_dump.xml" > dump.xml
 
 ## 1. リスト名の全件収集
 
-新規タイトルが出なくなる (stable が一定回数続く) まで dump とスワイプを繰り返す。
-
-```bash
-DEV=192.0.2.1:43347   # 実機。エミュレーターなら emulator-5554
-ACC=acc.txt             # タイトル累積ファイル
-> "$ACC"
-stable=0
-for i in $(seq 1 400); do
-  adb.exe -s $DEV shell uiautomator dump /sdcard/d.xml >/dev/null 2>&1
-  adb.exe -s $DEV shell "cat /sdcard/d.xml" > d.xml
-  before=$(wc -l < "$ACC")
-  python3 - d.xml "$ACC" <<'PY'
-import re,sys
-xml=open(sys.argv[1],encoding="utf-8").read()
-texts=[m.group(1) for m in re.finditer(r'text="([^"]+)"',xml)]
-# 「作成者:」を持つ要素の直前の text をリストタイトルとみなす。
-# タブ名「保存済み」が紛れることがあるので除外する。
-titles=[texts[i-1] for i,t in enumerate(texts)
-        if t.startswith("作成者:") and i>0 and texts[i-1]!="保存済み"]
-seen=set(l.strip() for l in open(sys.argv[2],encoding="utf-8"))
-with open(sys.argv[2],"a",encoding="utf-8") as f:
-    for t in titles:
-        if t not in seen:
-            f.write(t+"\n"); seen.add(t)
-PY
-  after=$(wc -l < "$ACC")
-  if [ "$before" -eq "$after" ]; then stable=$((stable+1)); else stable=0; fi
-  echo "iter $i: 累計 $after 件 (stable=$stable)"
-  if [ "$stable" -ge 6 ]; then echo "最下部に到達"; break; fi
-  # リスト領域内でスワイプアップ (下方向へスクロール)。
-  # duration を長め (800ms) にして慣性スクロールを殺すのが重要 (下記「既知の問題」参照)。
-  adb.exe -s $DEV shell input swipe 540 1900 540 1300 800 &> /dev/null
-done
-```
+dump とスワイプを繰り返して画面外の項目まで拾う。
+実装は [`fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) にあり、
+毎ループ dump して見えている項目を全て拾い、名前で dedup し、
+見えている分を処理し切ってから画面高より小さくスワイプして重なりを作る。
 
 ### 実機での検証結果 (2026-07-25)
 
-Xperia XQ-GE44 (1080x2340) で上のスクリプトを実行し、385 件を取得した。
+Xperia XQ-GE44 (1080x2340) で、上の方式に至るまでに確認した実測値。
 
 - **エミュレーターの 99 件頭打ちは実機では発生しない。** 全件収集は実機で行うこと。
 - **スワイプの duration が短いと慣性スクロールで項目を飛ばす。**
@@ -95,12 +65,9 @@ Xperia XQ-GE44 (1080x2340) で上のスクリプトを実行し、385 件を取�
 
   距離そのものより duration が効く。250ms のフリックは慣性で指定量以上スクロールする。
 
-- **この方式では全件を取り切れない。実際の全件は 461 件。**
-  385 件はその部分集合で、76 件 (種別 26/25/25 と一様) を落とす。
-  「固定量スワイプ → 1 回 dump」の継ぎ目に入った項目が、どちらの dump にも現れないため。
+- **「固定量スワイプ → 1 回 dump」では全件を取り切れない。** 385 件で頭打ちになり、実際の全件は 461 件。
+  スワイプと dump の継ぎ目に入った項目がどちらの dump にも現れず、76 件 (種別 26/25/25 と一様) を落とす。
   700px 版と 600px 版が完全一致したのは同じ盲点を共有していたからで、**条件を変えて一致しても独立した検証にはならない。**
-  [`fetch_share_urls.py`](../scripts/collect/fetch_share_urls.py) は「毎ループ dump して見えている項目を全て拾い、名前で dedup。
-  見えている分を処理し切ってから画面高より小さくスワイプする」方式で重なりを持たせ、この継ぎ目落ちを解消している。
 
 ### 既知の問題 / TODO
 
@@ -112,17 +79,9 @@ Xperia XQ-GE44 (1080x2340) で上のスクリプトを実行し、385 件を取�
 
 ## オプションメニューの内容 (実機で確認済み)
 
-オーバーフローボタンをタップすると以下の 6 項目が出る。
+オーバーフローボタンをタップすると 6 項目が出る。
+使うのは **リストを共有** (共有 URL の取得) と **リストを削除** (保存済みからの削除) の 2 つ。
 bounds は開いた位置によって変わるため、毎回 dump して text から引くこと。
-
-| 項目 | 用途 |
-| --- | --- |
-| 地図に表示しない | — |
-| **リストを共有** | 共有 URL の取得に使う |
-| **リストを削除** | 保存済みからの削除に使う |
-| フィードバックを送信 | — |
-| 法的な問題を報告 | — |
-| ポリシーの問題を報告 | — |
 
 ## 2. 各リストの共有 URL の取得
 
@@ -132,10 +91,6 @@ Android 10 以降はフォアグラウンドアプリ以外のクリップボー
 `adb shell service call clipboard ...` は使えない。
 クリップボードの読み書きには [`polygraphene/adb-clip`](https://github.com/polygraphene/adb-clip) を使う。
 `app_process` で shell UID として実行することでこの制限を回避する。**Android 10-16 対応、アプリ導入不要。**
-
-比較検討した [`PRosenb/AdbClipboard`](https://github.com/PRosenb/AdbClipboard) は
-アプリ導入 + overlay 権限 + 読み取りごとにフローティングウィンドウのタップが必要で、
-自動化には不向きだったため不採用。
 
 #### セットアップ (一度だけ)
 
@@ -172,10 +127,6 @@ DEV=192.0.2.1:42931
 adb.exe -s $DEV shell /data/local/tmp/clip | grep -o 'https://maps\.app\.goo\.gl/[A-Za-z0-9]*' | head -1
 ```
 
-前のリストの URL を誤って読む事故 (クリップボード未更新) を防ぐため、
-コピー前に番兵文字列を `clip 'SENTINEL'` で書き込んでおき、
-読み取り結果が番兵のままなら失敗として扱うとよい。
-
 ### 注意点
 
 - **自分のリスト (非公開) は共有 URL を持たない。**
@@ -187,11 +138,9 @@ adb.exe -s $DEV shell /data/local/tmp/clip | grep -o 'https://maps\.app\.goo\.gl
   もし dump を取る場合もリポジトリやログに残さないこと。
 - **Maps の検索ボックスはスクリプトからの選択コピー (`keycombination`/`KEYCODE_COPY`) に反応しない。**
   クリップボードへ入れるのは共有シートの「クリップボードにコピー」に任せること。
-- **1 件あたり数ステップ + 待機で、所要時間は 10 秒程度。**
-  全件 (461 件) を通すと数時間かかる。バックグラウンド実行前提で組むこと。
 - リストのタイトルと URL を対応付けるには、
   オーバーフローボタンの `content-desc` からリスト名を取れる
-  (`"<リスト名> に関するオプション"` の接頭辞)。これをキーにして CSV/JSON に落とすとよい。
+  (`"<リスト名> に関するオプション"` の接頭辞)。
 
 ### 実装スクリプト
 
@@ -206,7 +155,8 @@ DEV=... MAX=5 python3 scripts/collect/fetch_share_urls.py            # 動作確
 ```
 
 - 結果は Firestore の `lists` へ逐次 upsert。既知の名前はスキップするので中断しても再開できる。
-- コピー前に番兵をクリップボードへ書き、更新されなければ失敗として 2 回までリトライ。
+- コピー前に番兵文字列をクリップボードへ書き、更新されなければ失敗として 2 回までリトライ。
+  クリップボードが更新されず前のリストの URL を読んでしまう事故を防ぐため。
 - **「クリップボードにコピー」タップで共有シートは自動で閉じる。**
   余計な戻るキーを押すとリスト画面まで畳んでしまい毎回 top から再構築する羽目になるので、
   シートが残っているときだけ閉じるようにしてある。
@@ -214,7 +164,8 @@ DEV=... MAX=5 python3 scripts/collect/fetch_share_urls.py            # 動作確
 
 ## 3. 各リストの保存済みからの削除 (実施済み)
 
-2026-07-26 に「トップリスト以外 (トレンド / 地元で人気)」のフォロー中リストを全削除した。
+2026-07-26 に「トップリスト以外 (トレンド / 地元で人気)」のフォロー中リストを全削除し、
+独立スキャンで残 0 を確認した。トップリスト (約 150 件) は保持している。
 実装は [`delete_lists.py`](../scripts/collect/delete_lists.py)。以下は実機 (Xperia XQ-GE44 / Android 16) で確認した挙動。
 
 ### 実証した挙動
@@ -252,12 +203,6 @@ DEV=... MAX=5 python3 scripts/collect/fetch_share_urls.py            # 動作確
 - 途中終了/ANR に備え、force-stop → 再起動 → 再実行を繰り返すスーパーバイザーで回すと堅牢。
   「削除 0 件 かつ 最下部到達」のパスが出たら完了とみなせる。
   ただしループの自己申告は信用せず、**独立スキャンで残削除対象が 0 であることを検証**すること。
-
-### 結果
-
-- 削除対象 (トレンド / 地元で人気) をすべて削除し、独立スキャンで残 0 を確認。
-- トップリスト (約 150 件) は保持。共有 URL は全件保存済み
-  (実施当時は `share-urls.tsv`。その後 Firestore へ移行し、現在は `data/archive/share-urls.tsv` に凍結してある)。
 
 ## 4. 欠落しているエリア別リストの追加取得
 
