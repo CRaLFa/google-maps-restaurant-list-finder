@@ -5,7 +5,7 @@ Google マップ公式のエリア別レストランリスト (「渋谷: トッ
 
 **<https://google-maps-restaurant-list-finder-bxnbzgrdda-an.a.run.app>**
 
-現在 **200 エリア / 598 リスト**を収録している。
+現在 **201 エリア / 601 リスト**を収録している。
 
 ## レストランリストとは
 
